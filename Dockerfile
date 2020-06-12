@@ -28,7 +28,7 @@ RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev 
 WORKDIR /var/app
 COPY ./SGXDataCenterAttestationPrimitives/SampleCode/QuoteGenerationSample/ .
 
-RUN SGX_MODE=SIM SGX_DEBUG=1 make
+RUN SGX_DEBUG=1 make
 
 RUN adduser -q --disabled-password --gecos "" --no-create-home sgxuser
 USER sgxuser
