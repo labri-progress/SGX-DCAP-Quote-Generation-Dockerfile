@@ -80,7 +80,7 @@ SGX_COMMON_CXXFLAGS := $(SGX_COMMON_FLAGS) -Wnon-virtual-dtor -std=c++11
 ######## App Settings ########
 
 ifneq ($(SGX_MODE), HW)
-	Urts_Library_Name := sgx_urts_sim
+	Urts_Library_Name := sgx_urts_sim -lsgx_uae_service_sim
 else
 	Urts_Library_Name := sgx_urts
 endif
