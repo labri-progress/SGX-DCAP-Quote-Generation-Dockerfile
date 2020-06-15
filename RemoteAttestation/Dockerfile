@@ -8,7 +8,11 @@ RUN apt-get update && apt-get install -y \
     module-init-tools \
     # For the repository setup
     wget \
-    gnupg
+    gnupg \
+    # Dependencies required by sgx-ra-sample
+    autotools-dev \
+    automake \
+    xxd
 
 # Install the SDK
 WORKDIR /opt/intel
@@ -28,12 +32,21 @@ RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev 
 # The app
 FROM builder as sample
 
-WORKDIR /var/app
-COPY ./RemoteAttestation .
+WORKDIR /var/app/SGXDataCenterAttestationPrimitives
+COPY ./SGXDataCenterAttestationPrimitives .
 
-RUN SGX_MODE=SIM SGX_DEBUG=1 make
+# WORKDIR /var/app/RemoteAttestation
+# COPY ./RemoteAttestation .
+
+WORKDIR /var/app/sgx-ra-sample
+COPY ./sgx-ra-sample .
+
+RUN ./bootstrap
+RUN ./configure
+RUN SGX_MODE=HW make
+RUN chmod 777 .
 
 RUN adduser -q --disabled-password --gecos "" --no-create-home sgxuser
 USER sgxuser
 
-CMD LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/sgxsdk/lib64:$PWD/sample_libcrypto ./app
+CMD ./run-client --stdio

@@ -44,6 +44,8 @@
 #include <string.h>
 #include "ias_ra.h"
 
+#include "sgx_quote_3.h"
+
 #ifndef SAFE_FREE
 #define SAFE_FREE(ptr) {if (NULL != (ptr)) {free(ptr); (ptr) = NULL;}}
 #endif
@@ -569,7 +571,7 @@ int sp_ra_proc_msg3_req(const sample_ra_msg3_t *p_msg3,
     int ret = 0;
     sample_status_t sample_ret = SAMPLE_SUCCESS;
     const uint8_t *p_msg3_cmaced = NULL;
-    const sample_quote_t *p_quote = NULL;
+    const _sgx_quote3_t *p_quote = NULL;
     sample_sha_state_handle_t sha_handle = NULL;
     sample_report_data_t report_data = {0};
     sample_ra_att_result_msg_t *p_att_result_msg = NULL;
@@ -633,7 +635,7 @@ int sp_ra_proc_msg3_req(const sample_ra_msg3_t *p_msg3,
             break;
         }
 
-        p_quote = (const sample_quote_t*)p_msg3->quote;
+        p_quote = (const _sgx_quote3_t*)p_msg3->quote;
 
         // Check the quote version if needed. Only check the Quote.version field if the enclave
         // identity fields have changed or the size of the quote has changed.  The version may
@@ -709,7 +711,7 @@ int sp_ra_proc_msg3_req(const sample_ra_msg3_t *p_msg3,
         //! Please refer to the attestation server API for more details on this interface.
         ias_att_report_t attestation_report;
         memset(&attestation_report, 0, sizeof(attestation_report));
-        ret = g_sp_extended_epid_group_id->verify_attestation_evidence(p_quote, NULL,
+        ret = g_sp_extended_epid_group_id->verify_attestation_evidence((sample_quote_t*)p_quote, NULL,
                                               &attestation_report);
         if(0 != ret)
         {
@@ -764,13 +766,13 @@ int sp_ra_proc_msg3_req(const sample_ra_msg3_t *p_msg3,
         // should pass it down to the application for further analysis.
 
         fprintf(OUTPUT, "\n\n\tEnclave Report:");
-        fprintf(OUTPUT, "\n\tSignature Type: 0x%x", p_quote->sign_type);
-        fprintf(OUTPUT, "\n\tSignature Basename: ");
-        for(i=0; i<sizeof(p_quote->basename.name) && p_quote->basename.name[i];
-            i++)
-        {
-            fprintf(OUTPUT, "%c", p_quote->basename.name[i]);
-        }
+        // fprintf(OUTPUT, "\n\tSignature Type: 0x%x", p_quote->sign_type);
+        // fprintf(OUTPUT, "\n\tSignature Basename: ");
+        // for(i=0; i<sizeof(p_quote->basename.name) && p_quote->basename.name[i];
+        //     i++)
+        // {
+        //     fprintf(OUTPUT, "%c", p_quote->basename.name[i]);
+        // }
 #ifdef __x86_64__
         fprintf(OUTPUT, "\n\tattributes.flags: 0x%0lx",
                 p_quote->report_body.attributes.flags);
@@ -783,23 +785,23 @@ int sp_ra_proc_msg3_req(const sample_ra_msg3_t *p_msg3,
                 p_quote->report_body.attributes.xfrm);
 #endif
         fprintf(OUTPUT, "\n\tmr_enclave: ");
-        for(i=0;i<sizeof(sample_measurement_t);i++)
+        for(i=0;i<sizeof(sgx_measurement_t);i++)
         {
 
-            fprintf(OUTPUT, "%02x",p_quote->report_body.mr_enclave[i]);
+            fprintf(OUTPUT, "%02x", p_quote->report_body.mr_enclave.m[i]);
 
             //fprintf(stderr, "%02x",p_quote->report_body.mr_enclave.m[i]);
 
         }
         fprintf(OUTPUT, "\n\tmr_signer: ");
-        for(i=0;i<sizeof(sample_measurement_t);i++)
-        {
-
-            fprintf(OUTPUT, "%02x",p_quote->report_body.mr_signer[i]);
-
-            //fprintf(stderr, "%02x",p_quote->report_body.mr_signer.m[i]);
-
-        }
+        // for(i=0;i<sizeof(sample_measurement_t);i++)
+        // {
+        //
+        //     fprintf(OUTPUT, "%02x",p_quote->report_body.mr_signer[i]);
+        //
+        //     //fprintf(stderr, "%02x",p_quote->report_body.mr_signer.m[i]);
+        //
+        // }
         fprintf(OUTPUT, "\n\tisv_prod_id: 0x%0x",
                 p_quote->report_body.isv_prod_id);
         fprintf(OUTPUT, "\n\tisv_svn: 0x%0x",p_quote->report_body.isv_svn);
