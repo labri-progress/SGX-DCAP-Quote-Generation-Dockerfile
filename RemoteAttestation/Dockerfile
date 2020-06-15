@@ -25,15 +25,15 @@ RUN apt-get update
 RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev libsgx-quote-ex-dev libsgx-ae-qe3 libsgx-ae-qve libsgx-ae-epid libsgx-epid-dev libsgx-aesm-epid-plugin libsgx-uae-service sgx-aesm-service libsgx-aesm-ecdsa-plugin libsgx-aesm-epid-plugin
 
 
-FROM builder as sample
 # The app
+FROM builder as sample
+
 WORKDIR /var/app
-# COPY ./SGXDataCenterAttestationPrimitives/SampleCode/QuoteGenerationSample/ .
 COPY ./RemoteAttestation .
 
-RUN SGX_DEBUG=1 make
+RUN SGX_MODE=SIM SGX_DEBUG=1 make
 
 RUN adduser -q --disabled-password --gecos "" --no-create-home sgxuser
 USER sgxuser
 
-CMD LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/sample_libcrypto ./app
+CMD LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/sgxsdk/lib64:$PWD/sample_libcrypto ./app
