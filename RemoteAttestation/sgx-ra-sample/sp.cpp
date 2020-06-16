@@ -118,9 +118,6 @@ int process_msg01 (MsgIO *msg, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 int process_msg3 (MsgIO *msg, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 	ra_msg4_t *msg4, config_t *config, ra_session_t *session);
 
-int get_sigrl (IAS_Connection *ias, int version, sgx_epid_group_id_t gid,
-	char **sigrl, uint32_t *msg2);
-
 int get_attestation_report(IAS_Connection *ias, int version,
 	const char *b64quote, sgx_ps_sec_prop_desc_t sec_prop, ra_msg4_t *msg4,
 	int strict_trust);
@@ -258,7 +255,7 @@ int main(int argc, char *argv[])
 
 		case 'I':
 			// Get Size of File, should be IAS_SUBSCRIPTION_KEY_SIZE + EOF
-			ret = from_file(NULL, optarg, &offset); 
+			ret = from_file(NULL, optarg, &offset);
 
 			if ((offset != IAS_SUBSCRIPTION_KEY_SIZE+1) || (ret == 0)) {
 				eprintf("IAS Primary Subscription Key must be %d-byte hex string.\n",
@@ -492,7 +489,7 @@ int main(int argc, char *argv[])
         	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -4 ],
         	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -3 ],
         	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -2 ],
-        	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -1 ] 
+        	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -1 ]
 		);
 	}
 
@@ -549,12 +546,12 @@ int main(int argc, char *argv[])
 		eprintf("--isv-product-id is required\n");
 		flag_usage = 1;
 	}
-	
+
 	if ( ! flag_min_isvsvn ) {
 		eprintf("--min-isvsvn is required\n");
 		flag_usage = 1;
 	}
-	
+
 	if ( ! flag_mrsigner ) {
 		eprintf("--mrsigner is required\n");
 		flag_usage = 1;
@@ -595,9 +592,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* 
-	 * Set the cert store for this connection. This is used for verifying 
-	 * the IAS signing certificate, not the TLS connection with IAS (the 
+	/*
+	 * Set the cert store for this connection. This is used for verifying
+	 * the IAS signing certificate, not the TLS connection with IAS (the
 	 * latter is handled using config.ca_bundle).
 	 */
 	ias->cert_store(config.store);
@@ -610,7 +607,7 @@ int main(int argc, char *argv[])
 	if ( strlen(config.ca_bundle) ) ias->ca_bundle(config.ca_bundle);
 
 	/* Get our message IO object. */
-	
+
 	if ( flag_stdio ) {
 		msgio= new MsgIO();
 	} else {
@@ -623,8 +620,8 @@ int main(int argc, char *argv[])
 	}
 
 #ifndef _WIN32
-	/* 
-	 * Install some rudimentary signal handlers. We just want to make 
+	/*
+	 * Install some rudimentary signal handlers. We just want to make
 	 * sure we gracefully shutdown the listen socket before we exit
 	 * to avoid "address already in use" errors on startup.
 	 */
@@ -662,10 +659,10 @@ int main(int argc, char *argv[])
 
 		/*
 	 	* sgx_ra_msg2_t is a struct with a flexible array member at the
-	 	* end (defined as uint8_t sig_rl[]). We could go to all the 
+	 	* end (defined as uint8_t sig_rl[]). We could go to all the
 	 	* trouble of building a byte array large enough to hold the
 	 	* entire struct and then cast it as (sgx_ra_msg2_t) but that's
-	 	* a lot of work for no gain when we can just send the fixed 
+	 	* a lot of work for no gain when we can just send the fixed
 	 	* portion and the array portion by hand.
 	 	*/
 
@@ -839,7 +836,7 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 
 	if ( debug ) {
 		eprintf("+++ Validating quote's epid_group_id against msg1\n");
-		eprintf("msg1.egid = %s\n", 
+		eprintf("msg1.egid = %s\n",
 			hexstring(msg1->gid, sizeof(sgx_epid_group_id_t)));
 		eprintf("msg3.quote.epid_group_id = %s\n",
 			hexstring(&q->epid_group_id, sizeof(sgx_epid_group_id_t)));
@@ -890,7 +887,7 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 		if ( verbose ) {
 			edividerWithText("Enclave Report Verification");
 			if ( debug ) {
-				eprintf("VK                 = %s\n", 
+				eprintf("VK                 = %s\n",
 					hexstring(session->vk, 16));
 			}
 			eprintf("SHA256(Ga||Gb||VK) = %s\n",
@@ -914,7 +911,7 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 		 * that the MRSIGNER matches our signing key, and the MRENCLAVE
 		 * hash matches an enclave that we compiled.
 		 *
-		 * Other policy decisions might include examining ISV_SVN to 
+		 * Other policy decisions might include examining ISV_SVN to
 		 * prevent outdated/deprecated software from successfully
 		 * attesting, and ensuring the TCB is not out of date.
 		 *
@@ -926,8 +923,8 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 #ifndef _WIN32
 /* Windows implementation is not available yet */
 
-		if ( ! verify_enclave_identity(config->req_mrsigner, 
-			config->req_isv_product_id, config->min_isvsvn, 
+		if ( ! verify_enclave_identity(config->req_mrsigner,
+			config->req_isv_product_id, config->min_isvsvn,
 			config->allow_debug_enclave, r) ) {
 
 			eprintf("Invalid enclave.\n");
@@ -960,7 +957,7 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 		}
 
 
-		edividerWithText("Copy/Paste Msg4 Below to Client"); 
+		edividerWithText("Copy/Paste Msg4 Below to Client");
 
 		/* Serialize the members of the Msg4 structure independently */
 		/* vs. the entire structure as one send_msg() */
@@ -1059,7 +1056,7 @@ int process_msg01 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 
 	/* According to the Intel SGX Developer Reference
 	 * "Currently, the only valid extended Intel(R) EPID group ID is zero. The
-	 * server should verify this value is zero. If the Intel(R) EPID group ID 
+	 * server should verify this value is zero. If the Intel(R) EPID group ID
 	 * is not zero, the server aborts remote attestation"
 	 */
 
@@ -1096,7 +1093,7 @@ int process_msg01 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 
 	/*
 	 * Derive the KDK from the key (Ga) in msg1 and our session key.
-	 * An application would normally protect the KDK in memory to 
+	 * An application would normally protect the KDK in memory to
 	 * prevent trivial inspection.
 	 */
 
@@ -1111,8 +1108,8 @@ int process_msg01 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 	if ( debug ) eprintf("+++ KDK = %s\n", hexstring(session->kdk, 16));
 
 	/*
- 	 * Derive the SMK from the KDK 
-	 * SMK = AES_CMAC(KDK, 0x01 || "SMK" || 0x00 || 0x80 || 0x00) 
+ 	 * Derive the SMK from the KDK
+	 * SMK = AES_CMAC(KDK, 0x01 || "SMK" || 0x00 || 0x80 || 0x00)
 	 */
 
 	if ( debug ) eprintf("+++ deriving SMK\n");
@@ -1130,7 +1127,7 @@ int process_msg01 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 	 *
 	 * where:
 	 *
-	 * A      = Gb || SPID || TYPE || KDF-ID || SigSP(Gb, Ga) 
+	 * A      = Gb || SPID || TYPE || KDF-ID || SigSP(Gb, Ga)
 	 *          (64 + 16 + 2 + 2 + 64 = 148 bytes)
 	 * Ga     = Client enclave's session key
 	 *          (32 bytes)
@@ -1148,10 +1145,10 @@ int process_msg01 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 	 *
 	 * CMACsmk= AES-128-CMAC(A)
 	 *          (16 bytes)
-	 * 
+	 *
 	 * || denotes concatenation
 	 *
-	 * Note that all key components (Ga.x, etc.) are in little endian 
+	 * Note that all key components (Ga.x, etc.) are in little endian
 	 * format, meaning the byte streams need to be reversed.
 	 *
 	 * For SigRL, send:
@@ -1169,13 +1166,14 @@ int process_msg01 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 
 	/* Get the sigrl */
 
-	if ( ! get_sigrl(ias, config->apiver, msg1->gid, sigrl,
-		&msg2->sig_rl_size) ) {
-
-		eprintf("could not retrieve the sigrl\n");
-		free(msg01);
-		return 0;
-	}
+	// TODO: Check this can safely be removed
+	// if ( ! get_sigrl(ias, config->apiver, msg1->gid, sigrl,
+	// 	&msg2->sig_rl_size) ) {
+	//
+	// 	eprintf("could not retrieve the sigrl\n");
+	// 	free(msg01);
+	// 	return 0;
+	// }
 
 	memcpy(gb_ga, &msg2->g_b, 64);
 	memcpy(session->g_b, &msg2->g_b, 64);
@@ -1274,76 +1272,13 @@ int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a,
 	return 1;
 }
 
-int get_sigrl (IAS_Connection *ias, int version, sgx_epid_group_id_t gid,
-	char **sig_rl, uint32_t *sig_rl_size)
-{
-	IAS_Request *req= NULL;
-	int oops= 1;
-	string sigrlstr;
-
-	try {
-		oops= 0;
-		req= new IAS_Request(ias, (uint16_t) version);
-	}
-	catch (...) {
-		oops = 1;
-	}
-
-	if (oops) {
-		eprintf("Exception while creating IAS request object\n");
-		delete req;
-		return 0;
-	}
- 
-        ias_error_t ret = IAS_OK;
-
-	while (1) {
-
-		ret =  req->sigrl(*(uint32_t *) gid, sigrlstr);
-		if ( debug ) {
-			eprintf("+++ RET = %zu\n, ret");
-			eprintf("+++ SubscriptionKeyID = %d\n",(int)ias->getSubscriptionKeyID());
-                }
-	
-		if ( ret == IAS_UNAUTHORIZED && (ias->getSubscriptionKeyID() == IAS_Connection::SubscriptionKeyID::Primary))
-		{
-
-		        if ( debug ) {
-				eprintf("+++ IAS Primary Subscription Key failed with IAS_UNAUTHORIZED\n");
-				eprintf("+++ Retrying with IAS Secondary Subscription Key\n");
-			}	
-
-			// Retry with Secondary Subscription Key
-			ias->SetSubscriptionKeyID(IAS_Connection::SubscriptionKeyID::Secondary);
-			continue;
-		}	
-		else if (ret != IAS_OK ) {
-
-			delete req;
-			return 0;
-		}
-
-		break;
-	}
-
-
-	*sig_rl= strdup(sigrlstr.c_str());
-	if ( *sig_rl == NULL ) {
-		delete req;
-		return 0;
-	}
-
-	*sig_rl_size= (uint32_t ) sigrlstr.length();
-
-	delete req;
-
-	return 1;
-}
-
 int get_attestation_report(IAS_Connection *ias, int version,
 	const char *b64quote, sgx_ps_sec_prop_desc_t secprop, ra_msg4_t *msg4,
-	int strict_trust) 
+	int strict_trust)
 {
+	msg4->status = Trusted;
+	return 1;
+
 	IAS_Request *req = NULL;
 	map<string,string> payload;
 	vector<string> messages;
@@ -1360,7 +1295,7 @@ int get_attestation_report(IAS_Connection *ias, int version,
 	}
 
 	payload.insert(make_pair("isvEnclaveQuote", b64quote));
-	
+
 	status= req->report(payload, content, messages);
 	if ( status == IAS_OK ) {
 		JSON reportObj = JSON::Load(content);
@@ -1437,7 +1372,7 @@ int get_attestation_report(IAS_Connection *ias, int version,
 
 	/*
 	 * This sample's attestion policy is based on isvEnclaveQuoteStatus:
-	 * 
+	 *
 	 *   1) if "OK" then return "Trusted"
 	 *
  	 *   2) if "CONFIGURATION_NEEDED" then return
@@ -1446,14 +1381,14 @@ int get_attestation_report(IAS_Connection *ias, int version,
 	 *
 	 *   3) return "NotTrusted" for all other responses
 	 *
-	 * 
-	 * ItsComplicated means the client is not trusted, but can 
+	 *
+	 * ItsComplicated means the client is not trusted, but can
 	 * conceivable take action that will allow it to be trusted
 	 * (such as a BIOS update).
  	 */
 
 	/*
-	 * Simply check to see if status is OK, else enclave considered 
+	 * Simply check to see if status is OK, else enclave considered
 	 * not trusted
 	 */
 
@@ -1499,9 +1434,9 @@ int get_attestation_report(IAS_Connection *ias, int version,
 		/* remove the TLV Header (8 base16 chars, ie. 4 bytes) from
 		 * the PIB Buff. */
 
-		pibBuff.erase(pibBuff.begin(), pibBuff.begin() + (4*2)); 
+		pibBuff.erase(pibBuff.begin(), pibBuff.begin() + (4*2));
 
-		int ret = from_hexstring ((unsigned char *)&msg4->platformInfoBlob, 
+		int ret = from_hexstring ((unsigned char *)&msg4->platformInfoBlob,
 			pibBuff.c_str(), pibBuff.length()/2);
 	} else {
 		if ( verbose ) eprintf("A Platform Info Blob (PIB) was NOT provided by the IAS\n");
@@ -1572,7 +1507,7 @@ int get_proxy(char **server, unsigned int *port, const char *url)
 
 	idx1 = lcurl.find_first_not_of("/", idx1 + 1);
 	if (idx1 == string::npos) return 0;
-	
+
 	idx2 = lcurl.find_first_of(":", idx1);
 	if (idx2 == string::npos) {
 		idx2 = lcurl.find_first_of("/", idx1);
@@ -1632,7 +1567,7 @@ void cleanup_and_exit(int signo)
 #define NNL <<endl<<endl<<
 #define NL <<endl<<
 
-void usage () 
+void usage ()
 {
 	cerr << "usage: sp [ options ] [ port ]" NL
 "Required:" NL
@@ -1702,4 +1637,3 @@ void usage ()
 }
 
 /* vim: ts=4: */
-

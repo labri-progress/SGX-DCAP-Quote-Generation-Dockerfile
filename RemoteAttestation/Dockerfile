@@ -26,14 +26,13 @@ RUN echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bio
 RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
 RUN apt-get update
 
-RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev libsgx-quote-ex-dev libsgx-ae-qe3 libsgx-ae-qve libsgx-ae-epid libsgx-epid-dev libsgx-aesm-epid-plugin libsgx-uae-service sgx-aesm-service libsgx-aesm-ecdsa-plugin libsgx-aesm-epid-plugin
+RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev libsgx-quote-ex-dev libsgx-ae-qe3 libsgx-ae-qve libsgx-ae-epid libsgx-epid-dev libsgx-aesm-epid-plugin libsgx-uae-service sgx-aesm-service libsgx-aesm-ecdsa-plugin libsgx-aesm-epid-plugin libsgx-aesm-quote-ex-plugin
+
+
 
 
 # The app
 FROM builder as sample
-
-WORKDIR /var/app/SGXDataCenterAttestationPrimitives
-COPY ./SGXDataCenterAttestationPrimitives .
 
 # WORKDIR /var/app/RemoteAttestation
 # COPY ./RemoteAttestation .
@@ -47,6 +46,18 @@ RUN SGX_MODE=HW make
 RUN chmod 777 .
 
 RUN adduser -q --disabled-password --gecos "" --no-create-home sgxuser
-USER sgxuser
 
+
+
+FROM sample as client
+
+WORKDIR /var/app/sgx-ra-sample
+USER sgxuser
 CMD ./run-client --stdio
+
+
+FROM sample as server
+
+WORKDIR /var/app/sgx-ra-sample
+USER sgxuser
+CMD ./run-server --stdio --verbose
