@@ -94,7 +94,7 @@ MsgIO::MsgIO(const char *peer, const char *port)
 	hints.ai_protocol = IPPROTO_TCP;
 
 	rv= getaddrinfo(peer, port, &hints, &addrs);
-	if (rv != 0) {		
+	if (rv != 0) {
 		eprintf("getaddrinfo: %s\n", gai_strerror(rv));
 		throw std::runtime_error("getaddrinfo failed");
 	}
@@ -110,7 +110,7 @@ MsgIO::MsgIO(const char *peer, const char *port)
 		}
 
 		if ( peer == NULL ) { 	// We're the server
-			int enable = 1;			
+			int enable = 1;
 
 			setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&enable, sizeof(enable));
 #ifdef SO_REUSEPORT
@@ -119,7 +119,7 @@ MsgIO::MsgIO(const char *peer, const char *port)
 #ifdef IPV6_V6ONLY
 			// If we have an IPV6 socket, make sure it will accept IPv4 connections, too
 			if (addr->ai_family == AF_INET6) {
-				int disable = 0;				
+				int disable = 0;
 				setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&disable, sizeof(disable));
 			}
 #endif
@@ -171,8 +171,8 @@ MsgIO::MsgIO(const char *peer, const char *port)
 #endif
 			throw std::runtime_error("could not listen on socket");
 		}
-		
-		// We have a very simple server: it will block until we get a 
+
+		// We have a very simple server: it will block until we get a
 		// connection.
 
 		eprintf("Listening for connections on port %s\n", port);
@@ -237,7 +237,7 @@ int MsgIO::server_loop ()
 	// A client has connected.
 
 	if ( proto == AF_INET ) {
-		char clihost[INET_ADDRSTRLEN];		
+		char clihost[INET_ADDRSTRLEN];
 		sockaddr_in *sa = (sockaddr_in *) &cliaddr;
 
 		memset(clihost, 0, sizeof(clihost));
@@ -286,7 +286,7 @@ int MsgIO::read(void **dest, size_t *sz)
 
 	if (use_stdio) return read_msg(dest, sz);
 
-	/* 
+	/*
 	 * We don't know how many bytes are coming, so read until we find a
 	 * newline.
 	 */
@@ -339,7 +339,7 @@ again:
 			return 1;
 		} else return 0;
 	}
-	
+
 	return -1;
 }
 
@@ -370,7 +370,7 @@ again:
 			wbuffer.clear();
 			return;
 		}
-		
+
 		wbuffer.erase(0, bsent);
 	}
 }
@@ -407,68 +407,32 @@ void MsgIO::send_partial(void *src, size_t sz)
 
 int read_msg(void **dest, size_t *sz)
 {
-	size_t bread;
-	int repeat = 1;
-
-	if (buffer == NULL) {
-		buffer = (char *)malloc(buffer_size);
-		if (buffer == NULL) {
-			perror("malloc");
-			return -1;
-		}
+	char* line = NULL;
+	size_t n;
+	if (getline(&line, &n, stdin) == -1) {
+		return -1;
 	}
 
-	bread = 0;
-	while (repeat) {
-		if (fgets(&buffer[bread], (int)(buffer_size - bread), stdin) == NULL) {
-			if (ferror(stdin)) {
-				perror("fgets");
-				return -1;
-			}
-			else {
-				fprintf(stderr, "EOF received\n");
-				return 0;
-			}
-		}
-		/* If the last char is not a newline, we have more reading to do */
-
-		bread = strlen(buffer);
-		if (bread == 0) {
-			fprintf(stderr, "EOF received\n");
-			return 0;
-		}
-
-		if (buffer[bread - 1] == '\n') {
-			repeat = 0;
-			--bread;	/* Discard the newline */
-		}
-		else {
-			buffer_size += MSGIO_BUFFER_SZ;
-			buffer = (char *) realloc(buffer, buffer_size);
-			if (buffer == NULL) return -1;
-		}
+	if (n == 0) {
+		fprintf(stderr, "EOF received\n");
+		return 0;
 	}
-
-	/* Make sure we didn't get \r\n */
-	if (bread && buffer[bread - 1] == '\r') --bread;
-
-	if (bread % 2) {
-		fprintf(stderr, "read odd byte count %zu\n", bread);
+	if (line[n-1] == '\n') {
+		line[n-1] = '\0';
+		n--;
+	}
+	if (n % 2) {
+		fprintf(stderr, "read odd byte count %zu\n", n);
 		return 0;	/* base16 encoding = even number of bytes */
 	}
 
-	*dest = malloc(bread / 2);
+	*dest = malloc(n / 2);
 	if (*dest == NULL) return -1;
 
-	if (debug) {
-		edividerWithText("read buffer");
-		eputs(buffer);
-		edivider();
-	}
+	from_hexstring((unsigned char *) *dest, line, n/2);
+	free(line);
 
-	from_hexstring((unsigned char *) *dest, buffer, bread / 2);
-
-	if (sz != NULL) *sz = bread;
+	if (sz != NULL) *sz = n;
 
 	return 1;
 }
@@ -519,4 +483,3 @@ void fsend_msg(FILE *fp, void *src, size_t sz)
 	fprintf(fp, "\n");
 	fflush(fp);
 }
-
