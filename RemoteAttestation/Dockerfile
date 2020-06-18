@@ -53,11 +53,11 @@ FROM sample as client
 
 WORKDIR /var/app/sgx-ra-sample
 USER sgxuser
-CMD ./run-client --stdio
+CMD ./run-client
 
 
 FROM sample as server
 
 WORKDIR /var/app/sgx-ra-sample
 USER sgxuser
-CMD ./run-server --stdio --verbose
+CMD ./run-server --verbose
