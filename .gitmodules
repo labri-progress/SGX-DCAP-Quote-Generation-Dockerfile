@@ -1,3 +1,6 @@
 [submodule "QuoteGenerationSample/SGXDataCenterAttestationPrimitives"]
 	path = QuoteGenerationSample/SGXDataCenterAttestationPrimitives
 	url = https://github.com/intel/SGXDataCenterAttestationPrimitives.git
+[submodule "RemoteAttestation/SGXDataCenterAttestationPrimitives"]
+	path = RemoteAttestation/SGXDataCenterAttestationPrimitives
+	url = https://github.com/intel/SGXDataCenterAttestationPrimitives.git

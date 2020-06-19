@@ -47,9 +47,9 @@ in the License.
 #include "byteorder.h"
 #include "msgio.h"
 #include "protocol.h"
-#include "base64.h"
 #include "logfile.h"
 #include "enclave_verify.h"
+#include "quote_verify.h"
 
 using namespace json;
 using namespace std;
@@ -466,7 +466,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	int rv;
 	uint32_t quote_sz;
 	char *buffer= NULL;
-	char *b64quote;
 	sgx_mac_t vrfymac;
 	sgx_quote_t *q;
 
@@ -550,23 +549,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 
 	q= (sgx_quote_t *) msg3->quote;
 
-	printf("writing quote to file");
-    FILE* fptr = fopen("/var/app/sgx-ra-sample/quote/quote.dat","wb");
-    if( fptr )
-    {
-        fwrite(q, quote_sz, 1, fptr);
-        fclose(fptr);
-    }
-
-	/* Encode the report body as base64 */
-
-	b64quote= base64_encode((char *) &msg3->quote, quote_sz);
-	if ( b64quote == NULL ) {
-		eprintf("Could not base64 encode the quote\n");
-		free(msg3);
-		return 0;
-	}
-
 	if ( verbose ) {
 
 		edividerWithText("Msg3 Details (from Client)");
@@ -599,8 +581,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		eprintf("msg3.quote.signature     = %s\n",
 			hexstring(&q->signature, q->signature_len));
 
-		eputs(b64quote);
-
 		eprintf("\n");
 		edivider();
 	}
@@ -617,7 +597,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 
 	if ( memcmp(msg1->gid, &q->epid_group_id, sizeof(sgx_epid_group_id_t)) ) {
 		eprintf("EPID GID mismatch. Attestation failed.\n");
-		free(b64quote);
 		free(msg3);
 		return 0;
 	}
@@ -672,8 +651,12 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		64) ) {
 
 		eprintf("Report verification failed.\n");
-		free(b64quote);
 		free(msg3);
+		return 0;
+	}
+
+	if (ecdsa_quote_verification((uint8_t*) &msg3->quote, quote_sz) != 0) {
+		eprintf("Invalid quote.\n");
 		return 0;
 	}
 
@@ -770,7 +753,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		}
 	}
 
-	free(b64quote);
 	free(msg3);
 
 	return 1;

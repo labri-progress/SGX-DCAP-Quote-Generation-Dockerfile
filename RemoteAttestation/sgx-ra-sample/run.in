@@ -88,7 +88,6 @@ fi
 if [ "$PROG" = "run-client" ]
 then
 	./client \
-		-s $SPID \
 		$cl_nonce $cl_pse \
 		$flag_linkable $flag_debug $flag_verbose \
 		"$@"

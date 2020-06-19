@@ -69,7 +69,7 @@ bin_PROGRAMS = client sp mrsigner
 ## You can't use $(wildcard ...) with automake so all source files
 ## have to be explicitly listed.
 
-common = byteorder.c common.cpp crypto.c hexutil.c fileio.c base64.c \
+common = byteorder.c common.cpp crypto.c hexutil.c fileio.c \
 	msgio.cpp logfile.c
 
 ## client
@@ -84,7 +84,7 @@ client_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
 ## sp
 
-sp_SOURCES = sp.cpp enclave_verify.c $(common)
+sp_SOURCES = sp.cpp enclave_verify.c quote_verify.cpp $(common)
 BUILT_SOURCES += policy
 EXTRA_sp_DEPENDENCIES = Enclave.signed.so
 
@@ -118,4 +118,4 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 
 mrsigner_LDADD=-lcrypto
 
-sp_LDADD=-lcrypto
+sp_LDADD=-lsgx_dcap_ql -L../dcap_quoteverify/linux -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto

@@ -17,14 +17,6 @@ AC_ARG_WITH([openssldir],
 	[AC_HELP_STRING([--with-openssl=DIR], [Specify location of OpenSSL package])],
 	[openssl=$withval],[])
 
-AC_ARG_WITH([curldir],
-	[AC_HELP_STRING([--with-curl=DIR], [Specify location of curl package])],
-	[curl=$withval],[])
-
-AC_ARG_ENABLE([agent-libcurl],
-	[AC_HELP_STRING([--disable-agent-libcurl], [Disable the libcurl user agent])],
-	[], [enable_agent_libcurl=yes])
-
 dnl Are we building against SGX SDK 2.5 which required the bool type?
 dnl ----------------------------------------------------------------------
 AC_EGREP_HEADER([bool refresh_att_key],

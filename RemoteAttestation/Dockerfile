@@ -26,7 +26,9 @@ RUN echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bio
 RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
 RUN apt-get update
 
-RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev libsgx-quote-ex-dev libsgx-ae-qe3 libsgx-ae-qve libsgx-ae-epid libsgx-epid-dev libsgx-aesm-epid-plugin libsgx-uae-service sgx-aesm-service libsgx-aesm-ecdsa-plugin libsgx-aesm-epid-plugin libsgx-aesm-quote-ex-plugin
+RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev libsgx-quote-ex-dev libsgx-ae-qe3 libsgx-ae-qve libsgx-epid-dev libsgx-uae-service sgx-aesm-service libsgx-aesm-ecdsa-plugin libsgx-aesm-quote-ex-plugin libsgx-dcap-default-qpl-dev
+
+RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
 
 
 
@@ -34,8 +36,8 @@ RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev 
 # The app
 FROM builder as sample
 
-# WORKDIR /var/app/RemoteAttestation
-# COPY ./RemoteAttestation .
+WORKDIR /var/app/SGXDataCenterAttestationPrimitives
+COPY ./SGXDataCenterAttestationPrimitives .
 
 WORKDIR /var/app/sgx-ra-sample
 COPY ./sgx-ra-sample .

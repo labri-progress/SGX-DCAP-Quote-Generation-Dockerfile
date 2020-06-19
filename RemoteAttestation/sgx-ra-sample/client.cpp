@@ -59,7 +59,6 @@ using namespace std;
 #include "sgx_detect.h"
 #include "hexutil.h"
 #include "fileio.h"
-#include "base64.h"
 #include "crypto.h"
 #include "msgio.h"
 #include "logfile.h"
@@ -80,9 +79,7 @@ using namespace std;
 #endif
 
 typedef struct config_struct {
-	char mode;
 	uint32_t flags;
-	sgx_spid_t spid;
 	sgx_ec256_public_t pubkey;
 	sgx_quote_nonce_t nonce;
 	char *server;
@@ -139,7 +136,6 @@ sgx_status_t sgx_create_enclave_search (
 );
 
 void usage();
-int do_quote(sgx_enclave_id_t eid, config_t *config);
 int do_attestation(sgx_enclave_id_t eid, config_t *config);
 
 char debug= 0;
@@ -176,7 +172,6 @@ int main (int argc, char *argv[])
 	int sgx_support;
 	uint32_t i;
 	EVP_PKEY *service_public_key= NULL;
-	char have_spid= 0;
 	char flag_stdio= 0;
 
 	/* Create a logfile to capture debug output and actual msg data */
@@ -208,13 +203,11 @@ int main (int argc, char *argv[])
 
 
 	memset(&config, 0, sizeof(config));
-	config.mode= MODE_ATTEST;
 
 	static struct option long_opt[] =
 	{
 		{"help",		no_argument,		0, 'h'},
 		{"debug",		no_argument,		0, 'd'},
-		{"epid-gid",	no_argument,		0, 'e'},
 #ifdef _WIN32
 		{"pse-manifest",
 						no_argument,    	0, 'm'},
@@ -222,12 +215,9 @@ int main (int argc, char *argv[])
 		{"nonce",		required_argument,	0, 'n'},
 		{"nonce-file",	required_argument,	0, 'N'},
 		{"rand-nonce",	no_argument,		0, 'r'},
-		{"spid",		required_argument,	0, 's'},
-		{"spid-file",	required_argument,	0, 'S'},
 		{"linkable",	no_argument,		0, 'l'},
 		{"pubkey",		optional_argument,	0, 'p'},
 		{"pubkey-file",	required_argument,	0, 'P'},
-		{"quote",		no_argument,		0, 'q'},
 		{"verbose",		no_argument,		0, 'v'},
 		{"stdio",		no_argument,		0, 'z'},
 		{ 0, 0, 0, 0 }
@@ -240,7 +230,7 @@ int main (int argc, char *argv[])
 		int opt_index= 0;
 		unsigned char keyin[64];
 
-		c= getopt_long(argc, argv, "N:P:S:dehlmn:p:qrs:vz", long_opt,
+		c= getopt_long(argc, argv, "N:P:S:dhlmn:p:rs:vz", long_opt,
 			&opt_index);
 		if ( c == -1 ) break;
 
@@ -272,21 +262,8 @@ int main (int argc, char *argv[])
 			SET_OPT(config.flags, OPT_PUBKEY);
 
 			break;
-		case 'S':
-			if ( ! from_hexstring_file((unsigned char *) &config.spid,
-					optarg, 16)) {
-
-				fprintf(stderr, "SPID must be 32-byte hex string\n");
-				exit(1);
-			}
-			++have_spid;
-
-			break;
 		case 'd':
 			debug= 1;
-			break;
-		case 'e':
-			config.mode= MODE_EPID;
 			break;
 		case 'l':
 			SET_OPT(config.flags, OPT_LINK);
@@ -324,9 +301,6 @@ int main (int argc, char *argv[])
 			SET_OPT(config.flags, OPT_PUBKEY);
 
 			break;
-		case 'q':
-			config.mode = MODE_QUOTE;
-			break;
 		case 'r':
 			for(i= 0; i< 2; ++i) {
 				int retry= 10;
@@ -340,19 +314,6 @@ int main (int argc, char *argv[])
 				}
 			}
 			SET_OPT(config.flags, OPT_NONCE);
-			break;
-		case 's':
-			if ( strlen(optarg) < 32 ) {
-				fprintf(stderr, "SPID must be 32-byte hex string\n");
-				exit(1);
-			}
-			if ( ! from_hexstring((unsigned char *) &config.spid,
-					(unsigned char *) optarg, 16) ) {
-
-				fprintf(stderr, "SPID must be 32-byte hex string\n");
-				exit(1);
-			}
-			++have_spid;
 			break;
 		case 'v':
 			verbose= 1;
@@ -395,11 +356,6 @@ int main (int argc, char *argv[])
 			*cp++= '\0';
 			config.port= cp;
 		}
-	}
-
-	if ( ! have_spid && config.mode != MODE_EPID ) {
-		fprintf(stderr, "SPID required. Use one of --spid or --spid-file \n");
-		return 1;
 	}
 
 	/* Can we run SGX? */
@@ -448,17 +404,7 @@ int main (int argc, char *argv[])
 	}
 #endif
 
-	/* Are we attesting, or just spitting out a quote? */
-
-	if ( config.mode == MODE_ATTEST ) {
-		do_attestation(eid, &config);
-	} else if ( config.mode == MODE_EPID || config.mode == MODE_QUOTE ) {
-		do_quote(eid, &config);
-	} else {
-		fprintf(stderr, "Unknown operation mode.\n");
-		return 1;
-	}
-
+	do_attestation(eid, &config);
 
 	close_logfile(fplog);
 
@@ -915,220 +861,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 	return 0;
 }
 
-/*----------------------------------------------------------------------
- * do_quote()
- *
- * Generate a quote from the enclave.
- *----------------------------------------------------------------------
- * WARNING!
- *
- * DO NOT USE THIS SUBROUTINE AS A TEMPLATE FOR IMPLEMENTING REMOTE
- * ATTESTATION. do_quote() short-circuits the RA process in order
- * to generate an enclave quote directly!
- *
- * The high-level functions provided for remote attestation take
- * care of the low-level details of quote generation for you:
- *
- *   sgx_ra_init()
- *   sgx_ra_get_msg1
- *   sgx_ra_proc_msg2
- *
- * End developers should not normally be calling these functions
- * directly when doing remote attestation:
- *
- *    sgx_get_ps_sec_prop()
- *    sgx_get_quote()
- *    sgx_get_quote_size()
- *    sgx_calc_quote_size()
- *    sgx_get_report()
- *    sgx_init_quote()
- *
- *----------------------------------------------------------------------
- */
-
-int do_quote(sgx_enclave_id_t eid, config_t *config)
-{
-	sgx_status_t status, sgxrv;
-	sgx_quote_t *quote;
-	sgx_report_t report;
-	sgx_report_t qe_report;
-	sgx_target_info_t target_info;
-	sgx_epid_group_id_t epid_gid;
-	uint32_t sz= 0;
-	uint32_t flags= config->flags;
-	sgx_quote_sign_type_t linkable= SGX_UNLINKABLE_SIGNATURE;
-#ifdef _WIN32
-	sgx_ps_cap_t ps_cap;
-	char *pse_manifest = NULL;
-	size_t pse_manifest_sz;
-	LPTSTR b64quote = NULL;
-	DWORD sz_b64quote = 0;
-	LPTSTR b64manifest = NULL;
-	DWORD sz_b64manifest = 0;
-#else
-	char  *b64quote= NULL;
-	char *b64manifest = NULL;
-#endif
-
- 	if (OPT_ISSET(flags, OPT_LINK)) linkable= SGX_LINKABLE_SIGNATURE;
-
-	/* Platform services info. Win32 only. */
-#ifdef _WIN32
-	if (OPT_ISSET(flags, OPT_PSE)) {
-		status = get_pse_manifest_size(eid, &pse_manifest_sz);
-		if (status != SGX_SUCCESS) {
-			fprintf(stderr, "get_pse_manifest_size: %08x\n",
-				status);
-			return 1;
-		}
-
-		pse_manifest = (char *) malloc(pse_manifest_sz);
-
-		status = get_pse_manifest(eid, &sgxrv, pse_manifest, pse_manifest_sz);
-		if (status != SGX_SUCCESS) {
-			fprintf(stderr, "get_pse_manifest: %08x\n",
-				status);
-			return 1;
-		}
-		if (sgxrv != SGX_SUCCESS) {
-			fprintf(stderr, "get_sec_prop_desc_ex: %08x\n",
-				sgxrv);
-			return 1;
-		}
-	}
-#endif
-
-	/* Get our quote */
-
-	memset(&report, 0, sizeof(report));
-
-	status= sgx_init_quote(&target_info, &epid_gid);
-	if ( status != SGX_SUCCESS ) {
-		fprintf(stderr, "sgx_init_quote: %08x\n", status);
-		return 1;
-	}
-
-	/* Did they ask for just the EPID? */
-	if ( config->mode == MODE_EPID ) {
-		printf("%08x\n", *(uint32_t *)epid_gid);
-		exit(0);
-	}
-
-	status= get_report(eid, &sgxrv, &report, &target_info);
-	if ( status != SGX_SUCCESS ) {
-		fprintf(stderr, "get_report: %08x\n", status);
-		return 1;
-	}
-	if ( sgxrv != SGX_SUCCESS ) {
-		fprintf(stderr, "sgx_create_report: %08x\n", sgxrv);
-		return 1;
-	}
-
-	// sgx_get_quote_size() has been deprecated, but our PSW may be too old
-	// so use a wrapper function.
-
-	if (! get_quote_size(&status, &sz)) {
-		fprintf(stderr, "PSW missing sgx_get_quote_size() and sgx_calc_quote_size()\n");
-		return 1;
-	}
-	if ( status != SGX_SUCCESS ) {
-		fprintf(stderr, "SGX error while getting quote size: %08x\n", status);
-		return 1;
-	}
-
-	quote= (sgx_quote_t *) malloc(sz);
-	if ( quote == NULL ) {
-		fprintf(stderr, "out of memory\n");
-		return 1;
-	}
-
-	memset(quote, 0, sz);
-	status= sgx_get_quote(&report, linkable, &config->spid,
-		(OPT_ISSET(flags, OPT_NONCE)) ? &config->nonce : NULL,
-		NULL, 0,
-		(OPT_ISSET(flags, OPT_NONCE)) ? &qe_report : NULL,
-		quote, sz);
-	if ( status != SGX_SUCCESS ) {
-		fprintf(stderr, "sgx_get_quote: %08x\n", status);
-		return 1;
-	}
-
-	/* Print our quote */
-
-#ifdef _WIN32
-	// We could also just do ((4 * sz / 3) + 3) & ~3
-	// but it's cleaner to use the API.
-
-	if (CryptBinaryToString((BYTE *) quote, sz, CRYPT_STRING_BASE64|CRYPT_STRING_NOCRLF, NULL, &sz_b64quote) == FALSE) {
-		fprintf(stderr, "CryptBinaryToString: could not get Base64 encoded quote length\n");
-		return 1;
-	}
-
-	b64quote = (LPTSTR)(malloc(sz_b64quote));
-	if (b64quote == NULL) {
-		perror("malloc");
-		return 1;
-	}
-	if (CryptBinaryToString((BYTE *) quote, sz, CRYPT_STRING_BASE64|CRYPT_STRING_NOCRLF, b64quote, &sz_b64quote) == FALSE) {
-		fprintf(stderr, "CryptBinaryToString: could not get Base64 encoded quote length\n");
-		return 1;
-	}
-
-	if (OPT_ISSET(flags, OPT_PSE)) {
-		if (CryptBinaryToString((BYTE *)pse_manifest, (uint32_t)(pse_manifest_sz), CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, NULL, &sz_b64manifest) == FALSE) {
-			fprintf(stderr, "CryptBinaryToString: could not get Base64 encoded manifest length\n");
-			return 1;
-		}
-
-		b64manifest = (LPTSTR)(malloc(sz_b64manifest));
-		if (b64manifest == NULL) {
-			free(b64quote);
-			perror("malloc");
-			return 1;
-		}
-
-		if (CryptBinaryToString((BYTE *)pse_manifest, (uint32_t)(pse_manifest_sz), CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, b64manifest, &sz_b64manifest) == FALSE) {
-			fprintf(stderr, "CryptBinaryToString: could not get Base64 encoded manifest length\n");
-			return 1;
-		}
-	}
-
-#else
-	b64quote= base64_encode((char *) quote, sz);
-	if ( b64quote == NULL ) {
-		eprintf("Could not base64 encode quote\n");
-		return 1;
-	}
-#endif
-
-	printf("{\n");
-	printf("\"isvEnclaveQuote\":\"%s\"", b64quote);
-	if ( OPT_ISSET(flags, OPT_NONCE) ) {
-		printf(",\n\"nonce\":\"");
-		print_hexstring(stdout, &config->nonce, 16);
-		printf("\"");
-	}
-
-#ifdef _WIN32
-	if (OPT_ISSET(flags, OPT_PSE)) {
-		printf(",\n\"pseManifest\":\"%s\"", b64manifest);
-	}
-#endif
-	printf("\n}\n");
-
-#ifdef SGX_HW_SIM
-	fprintf(stderr, "WARNING! Built in h/w simulation mode. This quote will not be verifiable.\n");
-#endif
-
-	free(b64quote);
-#ifdef _WIN32
-	if ( b64manifest != NULL ) free(b64manifest);
-#endif
-
-	return 0;
-
-}
-
 /*
  * Search for the enclave file and then try and load it.
  */
@@ -1230,11 +962,7 @@ void usage ()
 	fprintf(stderr, "                             ASCII hex string\n");
 	fprintf(stderr, "  -P, --pubkey-file=FILE   File containing the public key of the service\n");
 	fprintf(stderr, "                             provider.\n");
-	fprintf(stderr, "  -S, --spid-file=FILE     Set the SPID from a file containing a 32-byte\n");
-	fprintf(stderr, "                             ASCII hex string\n");
 	fprintf(stderr, "  -d, --debug              Show debugging information\n");
-	fprintf(stderr, "  -e, --epid-gid           Get the EPID Group ID instead of performing\n");
-	fprintf(stderr, "                             an attestation.\n");
 	fprintf(stderr, "  -l, --linkable           Specify a linkable quote (default: unlinkable)\n");
 #ifdef _WIN32
 	fprintf(stderr, "  -m, --pse-manifest       Include the PSE manifest in the quote\n");
@@ -1243,13 +971,9 @@ void usage ()
 	fprintf(stderr, "  -p, --pubkey=HEXSTRING   Specify the public key of the service provider\n");
 	fprintf(stderr, "                             as an ASCII hex string instead of using the\n");
 	fprintf(stderr, "                             default.\n");
-	fprintf(stderr, "  -q                       Generate a quote instead of performing an\n");
-	fprintf(stderr, "                             attestation.\n");
 	fprintf(stderr, "  -r                       Generate a nonce using RDRAND\n");
-	fprintf(stderr, "  -s, --spid=HEXSTRING     Set the SPID from a 32-byte ASCII hex string\n");
 	fprintf(stderr, "  -v, --verbose            Print decoded RA messages to stderr\n");
 	fprintf(stderr, "  -z                       Read from stdin and write to stdout instead\n");
 	fprintf(stderr, "                             connecting to a server.\n");
-	fprintf(stderr, "\nOne of --spid OR --spid-file is required for generating a quote or doing\nremote attestation.\n");
 	exit(1);
 }
