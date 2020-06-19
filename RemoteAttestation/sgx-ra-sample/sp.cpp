@@ -84,12 +84,7 @@ typedef struct config_struct {
 	sgx_spid_t spid;
 	uint16_t quote_type;
 	EVP_PKEY *service_private_key;
-	char *ca_bundle;
-	char *user_agent;
-	unsigned int proxy_port;
 	unsigned char kdk[16];
-	X509_STORE *store;
-	X509 *signing_ca;
 	int strict_trust;
 	sgx_measurement_t req_mrsigner;
 	sgx_prod_id_t req_isv_product_id;
@@ -263,14 +258,6 @@ int main(int argc, char *argv[])
 
 		case 'd':
 			debug = 1;
-			break;
-
-		case 'g':
-			config.user_agent= strdup(optarg);
-			if ( config.user_agent == NULL ) {
-				perror("malloc");
-				return 1;
-			}
 			break;
 
 		case 'k':
