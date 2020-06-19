@@ -126,11 +126,11 @@ am__v_P_1 = :
 AM_V_GEN = $(am__v_GEN_@AM_V@)
 am__v_GEN_ = $(am__v_GEN_@AM_DEFAULT_V@)
 am__v_GEN_0 = @echo "  GEN     " $@;
-am__v_GEN_1 = 
+am__v_GEN_1 =
 AM_V_at = $(am__v_at_@AM_V@)
 am__v_at_ = $(am__v_at_@AM_DEFAULT_V@)
 am__v_at_0 = @
-am__v_at_1 = 
+am__v_at_1 =
 DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)
 depcomp = $(SHELL) $(top_srcdir)/depcomp
 am__depfiles_maybe = depfiles
@@ -140,26 +140,26 @@ COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
 AM_V_CC = $(am__v_CC_@AM_V@)
 am__v_CC_ = $(am__v_CC_@AM_DEFAULT_V@)
 am__v_CC_0 = @echo "  CC      " $@;
-am__v_CC_1 = 
+am__v_CC_1 =
 CCLD = $(CC)
 LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
-am__v_CCLD_1 = 
+am__v_CCLD_1 =
 CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 	$(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS)
 AM_V_CXX = $(am__v_CXX_@AM_V@)
 am__v_CXX_ = $(am__v_CXX_@AM_DEFAULT_V@)
 am__v_CXX_0 = @echo "  CXX     " $@;
-am__v_CXX_1 = 
+am__v_CXX_1 =
 CXXLD = $(CXX)
 CXXLINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) \
 	-o $@
 AM_V_CXXLD = $(am__v_CXXLD_@AM_V@)
 am__v_CXXLD_ = $(am__v_CXXLD_@AM_DEFAULT_V@)
 am__v_CXXLD_0 = @echo "  CXXLD   " $@;
-am__v_CXXLD_1 = 
+am__v_CXXLD_1 =
 SOURCES = $(Enclave_SOURCES) $(nodist_signed_enclave_debug_SOURCES) \
 	$(nodist_signed_enclave_rel_SOURCES)
 DIST_SOURCES = $(Enclave_SOURCES)
@@ -191,7 +191,6 @@ am__DIST_COMMON = $(srcdir)/Makefile.in \
 	$(top_srcdir)/build-aux/sgx_enclave.am $(top_srcdir)/depcomp
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
-AGENT_CURL_SRC = @AGENT_CURL_SRC@
 AMTAR = @AMTAR@
 AM_DEFAULT_VERBOSITY = @AM_DEFAULT_VERBOSITY@
 AUTOCONF = @AUTOCONF@
@@ -204,9 +203,7 @@ CFLAGS = @CFLAGS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CURL_CPPFLAGS = @CURL_CPPFLAGS@
-CURL_LDFLAGS = @CURL_LDFLAGS@
 CURL_LIBDIR = @CURL_LIBDIR@
-CURL_LIBS = @CURL_LIBS@
 CXX = @CXX@
 CXXDEPMODE = @CXXDEPMODE@
 CXXFLAGS = @CXXFLAGS@
@@ -227,7 +224,7 @@ INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
-LIBS = 
+LIBS =
 LIBS_HW_SIMU = @LIBS_HW_SIMU@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
@@ -411,7 +408,7 @@ uninstall-libexecPROGRAMS:
 clean-libexecPROGRAMS:
 	-test -z "$(libexec_PROGRAMS)" || rm -f $(libexec_PROGRAMS)
 
-Enclave$(EXEEXT): $(Enclave_OBJECTS) $(Enclave_DEPENDENCIES) $(EXTRA_Enclave_DEPENDENCIES) 
+Enclave$(EXEEXT): $(Enclave_OBJECTS) $(Enclave_DEPENDENCIES) $(EXTRA_Enclave_DEPENDENCIES)
 	@rm -f Enclave$(EXEEXT)
 	$(AM_V_CXXLD)$(CXXLINK) $(Enclave_OBJECTS) $(Enclave_LDADD) $(LIBS)
 
@@ -667,7 +664,7 @@ uninstall-am: uninstall-libexecPROGRAMS
 @ENCLAVE_RELEASE_SIGN_TRUE@.PHONY: signed_enclave_rel
 @ENCLAVE_RELEASE_SIGN_FALSE@.PHONY: signed_enclave_debug
 
-signed_enclave_debug$(EXEEXT): $(ENCLAVE).signed$(EXEEXT) 
+signed_enclave_debug$(EXEEXT): $(ENCLAVE).signed$(EXEEXT)
 
 $(ENCLAVE).signed$(EXEEXT): $(ENCLAVE)$(EXEEXT) $(ENCLAVE_CONFIG)
 	$(SGX_SIGN) sign -key $(ENCLAVE_KEY) -enclave $(ENCLAVE).so -out $(ENCLAVE).signed.so -config $(ENCLAVE_CONFIG)

@@ -625,13 +625,6 @@ ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
 LIBOBJS
-AGENT_CURL_FALSE
-AGENT_CURL_TRUE
-CURL_LIBS
-CURL_LIBDIR
-CURL_LDFLAGS
-CURL_CPPFLAGS
-AGENT_CURL_SRC
 OPENSSL_LIBDIR
 OPENSSL_LDFLAGS
 OPENSSL_CPPFLAGS
@@ -5272,37 +5265,6 @@ fi
 	if test "$use_libcurl" = "1"; then :
 
 
-$as_echo "#define AGENT_LIBCURL 1" >>confdefs.h
-
-		AGENT_CURL_SRC=agent_curl.cpp
-
-		if test "$curl" != ""; then :
-
-			CURL_CPPFLAGS=-I$curl/include
-
-			CURL_LDFLAGS=-L$curl/lib
-
-			CURL_LIBDIR=$curl/lib
-
-
-fi
-		CURL_LIBS=-lcurl
-
-
-fi
-
-else
-  use_libcurl=0
-fi
- if test "$use_libcurl" = "1"; then
-  AGENT_CURL_TRUE=
-  AGENT_CURL_FALSE='#'
-else
-  AGENT_CURL_TRUE='#'
-  AGENT_CURL_FALSE=
-fi
-
-
 ac_cv_default_ca_bundle_auto="not found"
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking CA bundle file" >&5
 $as_echo_n "checking CA bundle file... " >&6; }
@@ -6811,5 +6773,3 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unrecognized options: $ac_unrecognized_opts" >&5
 $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
-
-

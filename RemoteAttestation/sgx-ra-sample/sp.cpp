@@ -48,9 +48,7 @@ in the License.
 #include "msgio.h"
 #include "protocol.h"
 #include "base64.h"
-#include "iasrequest.h"
 #include "logfile.h"
-#include "settings.h"
 #include "enclave_verify.h"
 
 using namespace json;
@@ -84,18 +82,14 @@ typedef struct ra_session_struct {
 
 typedef struct config_struct {
 	sgx_spid_t spid;
-	unsigned char pri_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE+1];
-	unsigned char sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE+1];
 	uint16_t quote_type;
 	EVP_PKEY *service_private_key;
-	char *proxy_server;
 	char *ca_bundle;
 	char *user_agent;
 	unsigned int proxy_port;
 	unsigned char kdk[16];
 	X509_STORE *store;
 	X509 *signing_ca;
-	unsigned int apiver;
 	int strict_trust;
 	sgx_measurement_t req_mrsigner;
 	sgx_prod_id_t req_isv_product_id;
@@ -111,16 +105,12 @@ void cleanup_and_exit(int signo);
 int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a,
 	config_t *config);
 
-int process_msg01 (MsgIO *msg, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
+int process_msg01 (MsgIO *msg, sgx_ra_msg1_t *msg1,
 	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config,
 	ra_session_t *session);
 
-int process_msg3 (MsgIO *msg, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
+int process_msg3 (MsgIO *msg, sgx_ra_msg1_t *msg1,
 	ra_msg4_t *msg4, config_t *config, ra_session_t *session);
-
-int get_attestation_report(IAS_Connection *ias, int version,
-	const char *b64quote, sgx_ps_sec_prop_desc_t sec_prop, ra_msg4_t *msg4,
-	int strict_trust);
 
 int get_proxy(char **server, unsigned int *port, const char *url);
 
@@ -145,7 +135,6 @@ int main(int argc, char *argv[])
 	char *sigrl = NULL;
 	config_t config;
 	int oops;
-	IAS_Connection *ias= NULL;
 	char *port= NULL;
 #ifndef _WIN32
 	struct sigaction sact;
@@ -155,12 +144,8 @@ int main(int argc, char *argv[])
 
 	static struct option long_opt[] =
 	{
-		{"ias-signing-cafile",		required_argument,	0, 'A'},
 		{"ca-bundle",				required_argument,	0, 'B'},
 		{"no-debug-enclave",		no_argument,		0, 'D'},
-		{"list-agents",				no_argument,		0, 'G'},
-		{"ias-pri-api-key-file",	required_argument,	0, 'I'},
-		{"ias-sec-api-key-file",	required_argument,	0, 'J'},
 		{"service-key-file",		required_argument,	0, 'K'},
 		{"mrsigner",				required_argument,  0, 'N'},
 		{"production",				no_argument,		0, 'P'},
@@ -169,13 +154,9 @@ int main(int argc, char *argv[])
 		{"min-isv-svn",				required_argument,  0, 'V'},
 		{"strict-trust-mode",		no_argument,		0, 'X'},
 		{"debug",					no_argument,		0, 'd'},
-		{"user-agent",				required_argument,	0, 'g'},
 		{"help",					no_argument, 		0, 'h'},
-		{"ias-pri-api-key",			required_argument,	0, 'i'},
-		{"ias-sec-api-key",			required_argument,	0, 'j'},
 		{"key",						required_argument,	0, 'k'},
 		{"linkable",				no_argument,		0, 'l'},
-		{"proxy",					required_argument,	0, 'p'},
 		{"api-version",				required_argument,	0, 'r'},
 		{"spid",					required_argument,	0, 's'},
 		{"verbose",					no_argument,		0, 'v'},
@@ -193,8 +174,6 @@ int main(int argc, char *argv[])
 
 	memset(&config, 0, sizeof(config));
 
-	config.apiver= IAS_API_DEF_VERSION;
-
 	/*
 	 * For demo purposes only. A production/release enclave should
 	 * never allow debug-mode enclaves to attest.
@@ -206,13 +185,12 @@ int main(int argc, char *argv[])
 	while (1) {
 		int c;
 		int opt_index = 0;
-		off_t offset = IAS_SUBSCRIPTION_KEY_SIZE;
 		int ret = 0;
 		char *eptr= NULL;
 		unsigned long val;
 
 		c = getopt_long(argc, argv,
-			"A:B:DGI:J:K:N:PR:S:V:X:dg:hk:lp:r:s:i:j:vxz",
+			"DK:N:PR:S:V:X:dhk:lp:r:s:vxz",
 			long_opt, &opt_index);
 		if (c == -1) break;
 
@@ -221,80 +199,10 @@ int main(int argc, char *argv[])
 		case 0:
 			break;
 
-		case 'A':
-			if (!cert_load_file(&config.signing_ca, optarg)) {
-				crypto_perror("cert_load_file");
-				eprintf("%s: could not load IAS Signing Cert CA\n", optarg);
-				return 1;
-			}
-
-			config.store = cert_init_ca(config.signing_ca);
-			if (config.store == NULL) {
-				eprintf("%s: could not initialize certificate store\n", optarg);
-				return 1;
-			}
-			++flag_ca;
-
-			break;
-
-		case 'B':
-			config.ca_bundle = strdup(optarg);
-			if (config.ca_bundle == NULL) {
-				perror("strdup");
-				return 1;
-			}
-
-			break;
-
 		case 'D':
 			config.allow_debug_enclave= 0;
 			break;
-		case 'G':
-			ias_list_agents(stdout);
-			return 1;
 
-		case 'I':
-			// Get Size of File, should be IAS_SUBSCRIPTION_KEY_SIZE + EOF
-			ret = from_file(NULL, optarg, &offset);
-
-			if ((offset != IAS_SUBSCRIPTION_KEY_SIZE+1) || (ret == 0)) {
-				eprintf("IAS Primary Subscription Key must be %d-byte hex string.\n",
-					IAS_SUBSCRIPTION_KEY_SIZE);
-				return 1;
-			}
-
-			// Remove the EOF
-			offset--;
-
-			// Read the contents of the file
-			if (!from_file((unsigned char *)&config.pri_subscription_key, optarg, &offset)) {
-				eprintf("IAS Primary Subscription Key must be %d-byte hex string.\n",
-					IAS_SUBSCRIPTION_KEY_SIZE);
-					return 1;
-			}
-			break;
-
-		case 'J':
-			// Get Size of File, should be IAS_SUBSCRIPTION_KEY_SIZE + EOF
-			ret = from_file(NULL, optarg, &offset);
-
-			if ((offset != IAS_SUBSCRIPTION_KEY_SIZE+1) || (ret == 0)) {
-				eprintf("IAS Secondary Subscription Key must be %d-byte hex string.\n",
-					IAS_SUBSCRIPTION_KEY_SIZE);
-				return 1;
-			}
-
-			// Remove the EOF
-			offset--;
-
-			// Read the contents of the file
-			if (!from_file((unsigned char *)&config.sec_subscription_key, optarg, &offset)) {
-				eprintf("IAS Secondary Subscription Key must be %d-byte hex string.\n",
-					IAS_SUBSCRIPTION_KEY_SIZE);
-					return 1;
-			}
-
-			break;
 
 		case 'K':
 			if (!key_load_file(&config.service_private_key, optarg, KEY_PRIVATE)) {
@@ -365,27 +273,6 @@ int main(int argc, char *argv[])
 			}
 			break;
 
-		case 'i':
-			if (strlen(optarg) != IAS_SUBSCRIPTION_KEY_SIZE) {
-				eprintf("IAS Subscription Key must be %d-byte hex string\n",IAS_SUBSCRIPTION_KEY_SIZE);
-				return 1;
-			}
-
-			strncpy((char *) config.pri_subscription_key, optarg, IAS_SUBSCRIPTION_KEY_SIZE);
-
-			break;
-
-		case 'j':
-			if (strlen(optarg) != IAS_SUBSCRIPTION_KEY_SIZE) {
-				eprintf("IAS Secondary Subscription Key must be %d-byte hex string\n",
-				IAS_SUBSCRIPTION_KEY_SIZE);
-				return 1;
-			}
-
-			strncpy((char *) config.sec_subscription_key, optarg, IAS_SUBSCRIPTION_KEY_SIZE);
-
-			break;
-
 		case 'k':
 			if (!key_load(&config.service_private_key, optarg, KEY_PRIVATE)) {
 				crypto_perror("key_load");
@@ -396,26 +283,6 @@ int main(int argc, char *argv[])
 
 		case 'l':
 			config.quote_type = SGX_LINKABLE_SIGNATURE;
-			break;
-
-		case 'p':
-			if ( flag_noproxy ) usage();
-			if (!get_proxy(&config.proxy_server, &config.proxy_port, optarg)) {
-				eprintf("%s: could not extract proxy info\n", optarg);
-				return 1;
-			}
-			// Break the URL into host and port. This is a simplistic algorithm.
-			break;
-
-		case 'r':
-			config.apiver= atoi(optarg);
-			if ( config.apiver < IAS_MIN_VERSION || config.apiver >
-				IAS_MAX_VERSION ) {
-
-				eprintf("version must be between %d and %d\n",
-					IAS_MIN_VERSION, IAS_MAX_VERSION);
-				return 1;
-			}
 			break;
 
 		case 's':
@@ -432,11 +299,6 @@ int main(int argc, char *argv[])
 
 		case 'v':
 			verbose = 1;
-			break;
-
-		case 'x':
-			if ( config.proxy_server != NULL ) usage();
-			flag_noproxy=1;
 			break;
 
 		case 'z':
@@ -467,43 +329,6 @@ int main(int argc, char *argv[])
 			perror("strdup");
 			return 1;
 		}
-	}
-
-	if ( debug ) {
-		eprintf("+++ IAS Primary Subscription Key set to '%c%c%c%c........................%c%c%c%c'\n",
-			config.pri_subscription_key[0],
-        	config.pri_subscription_key[1],
-        	config.pri_subscription_key[2],
-        	config.pri_subscription_key[3],
-        	config.pri_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -4 ],
-        	config.pri_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -3 ],
-        	config.pri_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -2 ],
-        	config.pri_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -1 ]
-		);
-
-		eprintf("+++ IAS Secondary Subscription Key set to '%c%c%c%c........................%c%c%c%c'\n",
-        	config.sec_subscription_key[0],
-        	config.sec_subscription_key[1],
-        	config.sec_subscription_key[2],
-        	config.sec_subscription_key[3],
-        	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -4 ],
-        	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -3 ],
-        	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -2 ],
-        	config.sec_subscription_key[IAS_SUBSCRIPTION_KEY_SIZE -1 ]
-		);
-	}
-
-
-	/* Use the default CA bundle unless one is provided */
-
-	if ( config.ca_bundle == NULL ) {
-		config.ca_bundle= strdup(DEFAULT_CA_BUNDLE);
-		if ( config.ca_bundle == NULL ) {
-			perror("strdup");
-			return 1;
-		}
-		if ( debug ) eprintf("+++ Using default CA bundle %s\n",
-			config.ca_bundle);
 	}
 
 	/*
@@ -537,11 +362,6 @@ int main(int argc, char *argv[])
 		flag_usage = 1;
 	}
 
-	if (!flag_ca) {
-		eprintf("--ias-signing-cafile is required\n");
-		flag_usage = 1;
-	}
-
 	if ( ! flag_isv_product_id ) {
 		eprintf("--isv-product-id is required\n");
 		flag_usage = 1;
@@ -562,49 +382,6 @@ int main(int argc, char *argv[])
 	/* Initialize out support libraries */
 
 	crypto_init();
-
-	/* Initialize our IAS request object */
-
-	try {
-		ias = new IAS_Connection(
-			(flag_prod) ? IAS_SERVER_PRODUCTION : IAS_SERVER_DEVELOPMENT,
-			0,
-			(char *)(config.pri_subscription_key),
-			(char *)(config.sec_subscription_key)
-		);
-	}
-	catch (...) {
-		oops = 1;
-		eprintf("exception while creating IAS request object\n");
-		return 1;
-	}
-
-	if ( flag_noproxy ) ias->proxy_mode(IAS_PROXY_NONE);
-	else if (config.proxy_server != NULL) {
-		ias->proxy_mode(IAS_PROXY_FORCE);
-		ias->proxy(config.proxy_server, config.proxy_port);
-	}
-
-	if ( config.user_agent != NULL ) {
-		if ( ! ias->agent(config.user_agent) ) {
-			eprintf("%s: unknown user agent\n", config.user_agent);
-			return 0;
-		}
-	}
-
-	/*
-	 * Set the cert store for this connection. This is used for verifying
-	 * the IAS signing certificate, not the TLS connection with IAS (the
-	 * latter is handled using config.ca_bundle).
-	 */
-	ias->cert_store(config.store);
-
-	/*
-	 * Set the CA bundle for verifying the IAS server certificate used
-	 * for the TLS session. If this isn't set, then the user agent
-	 * will fall back to it's default.
-	 */
-	if ( strlen(config.ca_bundle) ) ias->ca_bundle(config.ca_bundle);
 
 	/* Get our message IO object. */
 
@@ -648,7 +425,7 @@ int main(int argc, char *argv[])
 
 		/* Read message 0 and 1, then generate message 2 */
 
-		if ( ! process_msg01(msgio, ias, &msg1, &msg2, &sigrl, &config,
+		if ( ! process_msg01(msgio, &msg1, &msg2, &sigrl, &config,
 			&session) ) {
 
 			eprintf("error processing msg1\n");
@@ -679,7 +456,7 @@ int main(int argc, char *argv[])
 
 		/* Read message 3, and generate message 4 */
 
-		if ( ! process_msg3(msgio, ias, &msg1, &msg4, &config, &session) ) {
+		if ( ! process_msg3(msgio, &msg1, &msg4, &config, &session) ) {
 			eprintf("error processing msg3\n");
 			goto disconnect;
 		}
@@ -693,7 +470,7 @@ disconnect:
 	return 0;
 }
 
-int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
+int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	ra_msg4_t *msg4, config_t *config, ra_session_t *session)
 {
 	sgx_ra_msg3_t *msg3;
@@ -771,16 +548,28 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 	cmac128(session->smk, (unsigned char *) &msg3->g_a,
 		sizeof(sgx_ra_msg3_t)-sizeof(sgx_mac_t)+quote_sz,
 		(unsigned char *) vrfymac);
+
 	if ( debug ) {
 		eprintf("+++ Validating MACsmk(M)\n");
 		eprintf("msg3.mac   = %s\n", hexstring(msg3->mac, sizeof(sgx_mac_t)));
 		eprintf("calculated = %s\n", hexstring(vrfymac, sizeof(sgx_mac_t)));
 	}
+
 	if ( CRYPTO_memcmp(msg3->mac, vrfymac, sizeof(sgx_mac_t)) ) {
 		eprintf("Failed to verify msg3 MAC\n");
 		free(msg3);
 		return 0;
 	}
+
+	q= (sgx_quote_t *) msg3->quote;
+
+	printf("writing quote to file");
+    FILE* fptr = fopen("/var/app/sgx-ra-sample/quote/quote.dat","wb");
+    if( fptr )
+    {
+        fwrite(q, quote_sz, 1, fptr);
+        fclose(fptr);
+    }
 
 	/* Encode the report body as base64 */
 
@@ -790,7 +579,6 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 		free(msg3);
 		return 0;
 	}
-	q= (sgx_quote_t *) msg3->quote;
 
 	if ( verbose ) {
 
@@ -824,8 +612,6 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 		eprintf("msg3.quote.signature     = %s\n",
 			hexstring(&q->signature, q->signature_len));
 
-		edividerWithText("Enclave Quote (base64) ==> Send to IAS");
-
 		eputs(b64quote);
 
 		eprintf("\n");
@@ -850,159 +636,151 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 	}
 
 
-	if ( get_attestation_report(ias, config->apiver, b64quote,
-		msg3->ps_sec_prop, msg4, config->strict_trust) ) {
+	msg4->status = Trusted;
 
-		unsigned char vfy_rdata[64];
-		unsigned char msg_rdata[144]; /* for Ga || Gb || VK */
+	unsigned char vfy_rdata[64];
+	unsigned char msg_rdata[144]; /* for Ga || Gb || VK */
 
-		sgx_report_body_t *r= (sgx_report_body_t *) &q->report_body;
+	sgx_report_body_t *r= (sgx_report_body_t *) &q->report_body;
 
-		memset(vfy_rdata, 0, 64);
+	memset(vfy_rdata, 0, 64);
 
-		/*
-		 * Verify that the first 64 bytes of the report data (inside
-		 * the quote) are SHA256(Ga||Gb||VK) || 0x00[32]
-		 *
-		 * VK = CMACkdk( 0x01 || "VK" || 0x00 || 0x80 || 0x00 )
-		 *
-		 * where || denotes concatenation.
-		 */
+	/*
+	 * Verify that the first 64 bytes of the report data (inside
+	 * the quote) are SHA256(Ga||Gb||VK) || 0x00[32]
+	 *
+	 * VK = CMACkdk( 0x01 || "VK" || 0x00 || 0x80 || 0x00 )
+	 *
+	 * where || denotes concatenation.
+	 */
 
-		/* Derive VK */
+	/* Derive VK */
 
-		cmac128(session->kdk, (unsigned char *)("\x01VK\x00\x80\x00"),
-				6, session->vk);
+	cmac128(session->kdk, (unsigned char *)("\x01VK\x00\x80\x00"),
+			6, session->vk);
 
-		/* Build our plaintext */
+	/* Build our plaintext */
 
-		memcpy(msg_rdata, session->g_a, 64);
-		memcpy(&msg_rdata[64], session->g_b, 64);
-		memcpy(&msg_rdata[128], session->vk, 16);
+	memcpy(msg_rdata, session->g_a, 64);
+	memcpy(&msg_rdata[64], session->g_b, 64);
+	memcpy(&msg_rdata[128], session->vk, 16);
 
-		/* SHA-256 hash */
+	/* SHA-256 hash */
 
-		sha256_digest(msg_rdata, 144, vfy_rdata);
+	sha256_digest(msg_rdata, 144, vfy_rdata);
 
-		if ( verbose ) {
-			edividerWithText("Enclave Report Verification");
-			if ( debug ) {
-				eprintf("VK                 = %s\n",
-					hexstring(session->vk, 16));
-			}
-			eprintf("SHA256(Ga||Gb||VK) = %s\n",
-				hexstring(vfy_rdata, 32));
-			eprintf("report_data[64]    = %s\n",
-				hexstring(&r->report_data, 64));
+	if ( verbose ) {
+		edividerWithText("Enclave Report Verification");
+		if ( debug ) {
+			eprintf("VK                 = %s\n",
+				hexstring(session->vk, 16));
 		}
+		eprintf("SHA256(Ga||Gb||VK) = %s\n",
+			hexstring(vfy_rdata, 32));
+		eprintf("report_data[64]    = %s\n",
+			hexstring(&r->report_data, 64));
+	}
 
-		if ( CRYPTO_memcmp((void *) vfy_rdata, (void *) &r->report_data,
-			64) ) {
+	if ( CRYPTO_memcmp((void *) vfy_rdata, (void *) &r->report_data,
+		64) ) {
 
-			eprintf("Report verification failed.\n");
-			free(b64quote);
-			free(msg3);
-			return 0;
-		}
+		eprintf("Report verification failed.\n");
+		free(b64quote);
+		free(msg3);
+		return 0;
+	}
 
-		/*
-		 * The service provider must validate that the enclave
-		 * report is from an enclave that they recognize. Namely,
-		 * that the MRSIGNER matches our signing key, and the MRENCLAVE
-		 * hash matches an enclave that we compiled.
-		 *
-		 * Other policy decisions might include examining ISV_SVN to
-		 * prevent outdated/deprecated software from successfully
-		 * attesting, and ensuring the TCB is not out of date.
-		 *
-		 * A real-world service provider might allow multiple ISV_SVN
-		 * values, but for this sample we only allow the enclave that
-		 * is compiled.
-		 */
+	/*
+	 * The service provider must validate that the enclave
+	 * report is from an enclave that they recognize. Namely,
+	 * that the MRSIGNER matches our signing key, and the MRENCLAVE
+	 * hash matches an enclave that we compiled.
+	 *
+	 * Other policy decisions might include examining ISV_SVN to
+	 * prevent outdated/deprecated software from successfully
+	 * attesting, and ensuring the TCB is not out of date.
+	 *
+	 * A real-world service provider might allow multiple ISV_SVN
+	 * values, but for this sample we only allow the enclave that
+	 * is compiled.
+	 */
 
 #ifndef _WIN32
 /* Windows implementation is not available yet */
 
-		if ( ! verify_enclave_identity(config->req_mrsigner,
-			config->req_isv_product_id, config->min_isvsvn,
-			config->allow_debug_enclave, r) ) {
+	if ( ! verify_enclave_identity(config->req_mrsigner,
+		config->req_isv_product_id, config->min_isvsvn,
+		config->allow_debug_enclave, r) ) {
 
-			eprintf("Invalid enclave.\n");
-			msg4->status= NotTrusted;
-		}
+		eprintf("Invalid enclave.\n");
+		msg4->status= NotTrusted;
+	}
 #endif
 
-		if ( verbose ) {
-			edivider();
-
-			// The enclave report is valid so we can trust the report
-			// data.
-
-			edividerWithText("Enclave Report Details");
-
-			eprintf("cpu_svn     = %s\n",
-				hexstring(&r->cpu_svn, sizeof(sgx_cpu_svn_t)));
-			eprintf("misc_select = %s\n",
-				hexstring(&r->misc_select, sizeof(sgx_misc_select_t)));
-			eprintf("attributes  = %s\n",
-				hexstring(&r->attributes, sizeof(sgx_attributes_t)));
-			eprintf("mr_enclave  = %s\n",
-				hexstring(&r->mr_enclave, sizeof(sgx_measurement_t)));
-			eprintf("mr_signer   = %s\n",
-				hexstring(&r->mr_signer, sizeof(sgx_measurement_t)));
-			eprintf("isv_prod_id = %04hX\n", r->isv_prod_id);
-			eprintf("isv_svn     = %04hX\n", r->isv_svn);
-			eprintf("report_data = %s\n",
-				hexstring(&r->report_data, sizeof(sgx_report_data_t)));
-		}
-
-
-		edividerWithText("Copy/Paste Msg4 Below to Client");
-
-		/* Serialize the members of the Msg4 structure independently */
-		/* vs. the entire structure as one send_msg() */
-
-		msgio->send_partial(&msg4->status, sizeof(msg4->status));
-		msgio->send(&msg4->platformInfoBlob, sizeof(msg4->platformInfoBlob));
-
-		fsend_msg_partial(fplog, &msg4->status, sizeof(msg4->status));
-		fsend_msg(fplog, &msg4->platformInfoBlob,
-			sizeof(msg4->platformInfoBlob));
+	if ( verbose ) {
 		edivider();
 
-		/*
-		 * If the enclave is trusted, derive the MK and SK. Also get
-		 * SHA256 hashes of these so we can verify there's a shared
-		 * secret between us and the client.
-		 */
+		// The enclave report is valid so we can trust the report
+		// data.
 
-		if ( msg4->status == Trusted ) {
-			unsigned char hashmk[32], hashsk[32];
+		edividerWithText("Enclave Report Details");
 
-			if ( debug ) eprintf("+++ Deriving the MK and SK\n");
-			cmac128(session->kdk, (unsigned char *)("\x01MK\x00\x80\x00"),
-				6, session->mk);
-			cmac128(session->kdk, (unsigned char *)("\x01SK\x00\x80\x00"),
-				6, session->sk);
+		eprintf("cpu_svn     = %s\n",
+			hexstring(&r->cpu_svn, sizeof(sgx_cpu_svn_t)));
+		eprintf("misc_select = %s\n",
+			hexstring(&r->misc_select, sizeof(sgx_misc_select_t)));
+		eprintf("attributes  = %s\n",
+			hexstring(&r->attributes, sizeof(sgx_attributes_t)));
+		eprintf("mr_enclave  = %s\n",
+			hexstring(&r->mr_enclave, sizeof(sgx_measurement_t)));
+		eprintf("mr_signer   = %s\n",
+			hexstring(&r->mr_signer, sizeof(sgx_measurement_t)));
+		eprintf("isv_prod_id = %04hX\n", r->isv_prod_id);
+		eprintf("isv_svn     = %04hX\n", r->isv_svn);
+		eprintf("report_data = %s\n",
+			hexstring(&r->report_data, sizeof(sgx_report_data_t)));
+	}
 
-			sha256_digest(session->mk, 16, hashmk);
-			sha256_digest(session->sk, 16, hashsk);
 
-			if ( verbose ) {
-				if ( debug ) {
-					eprintf("MK         = %s\n", hexstring(session->mk, 16));
-					eprintf("SK         = %s\n", hexstring(session->sk, 16));
-				}
-				eprintf("SHA256(MK) = %s\n", hexstring(hashmk, 32));
-				eprintf("SHA256(SK) = %s\n", hexstring(hashsk, 32));
+	edividerWithText("Copy/Paste Msg4 Below to Client");
+
+	/* Serialize the members of the Msg4 structure independently */
+	/* vs. the entire structure as one send_msg() */
+
+	msgio->send_partial(&msg4->status, sizeof(msg4->status));
+	msgio->send(&msg4->platformInfoBlob, sizeof(msg4->platformInfoBlob));
+
+	fsend_msg_partial(fplog, &msg4->status, sizeof(msg4->status));
+	fsend_msg(fplog, &msg4->platformInfoBlob,
+		sizeof(msg4->platformInfoBlob));
+	edivider();
+
+	/*
+	 * If the enclave is trusted, derive the MK and SK. Also get
+	 * SHA256 hashes of these so we can verify there's a shared
+	 * secret between us and the client.
+	 */
+
+	if ( msg4->status == Trusted ) {
+		unsigned char hashmk[32], hashsk[32];
+
+		if ( debug ) eprintf("+++ Deriving the MK and SK\n");
+		cmac128(session->kdk, (unsigned char *)("\x01MK\x00\x80\x00"),
+			6, session->mk);
+		cmac128(session->kdk, (unsigned char *)("\x01SK\x00\x80\x00"),
+			6, session->sk);
+
+		sha256_digest(session->mk, 16, hashmk);
+		sha256_digest(session->sk, 16, hashsk);
+
+		if ( verbose ) {
+			if ( debug ) {
+				eprintf("MK         = %s\n", hexstring(session->mk, 16));
+				eprintf("SK         = %s\n", hexstring(session->sk, 16));
 			}
+			eprintf("SHA256(MK) = %s\n", hexstring(hashmk, 32));
+			eprintf("SHA256(SK) = %s\n", hexstring(hashsk, 32));
 		}
-
-	} else {
-		eprintf("Attestation failed\n");
-		free(msg3);
-		free(b64quote);
-		return 0;
 	}
 
 	free(b64quote);
@@ -1016,7 +794,7 @@ int process_msg3 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
  * the client concatenated together for efficiency (msg0||msg1).
  */
 
-int process_msg01 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
+int process_msg01 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config, ra_session_t *session)
 {
 	struct msg01_struct {
@@ -1166,15 +944,6 @@ int process_msg01 (MsgIO *msgio, IAS_Connection *ias, sgx_ra_msg1_t *msg1,
 
 	/* Get the sigrl */
 
-	// TODO: Check this can safely be removed
-	// if ( ! get_sigrl(ias, config->apiver, msg1->gid, sigrl,
-	// 	&msg2->sig_rl_size) ) {
-	//
-	// 	eprintf("could not retrieve the sigrl\n");
-	// 	free(msg01);
-	// 	return 0;
-	// }
-
 	memcpy(gb_ga, &msg2->g_b, 64);
 	memcpy(session->g_b, &msg2->g_b, 64);
 
@@ -1272,220 +1041,6 @@ int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a,
 	return 1;
 }
 
-int get_attestation_report(IAS_Connection *ias, int version,
-	const char *b64quote, sgx_ps_sec_prop_desc_t secprop, ra_msg4_t *msg4,
-	int strict_trust)
-{
-	msg4->status = Trusted;
-	return 1;
-
-	IAS_Request *req = NULL;
-	map<string,string> payload;
-	vector<string> messages;
-	ias_error_t status;
-	string content;
-
-	try {
-		req= new IAS_Request(ias, (uint16_t) version);
-	}
-	catch (...) {
-		eprintf("Exception while creating IAS request object\n");
-		if ( req != NULL ) delete req;
-		return 0;
-	}
-
-	payload.insert(make_pair("isvEnclaveQuote", b64quote));
-
-	status= req->report(payload, content, messages);
-	if ( status == IAS_OK ) {
-		JSON reportObj = JSON::Load(content);
-
-		if ( verbose ) {
-			edividerWithText("Report Body");
-			eprintf("%s\n", content.c_str());
-			edivider();
-			if ( messages.size() ) {
-				edividerWithText("IAS Advisories");
-				for (vector<string>::const_iterator i = messages.begin();
-					i != messages.end(); ++i ) {
-
-					eprintf("%s\n", i->c_str());
-				}
-				edivider();
-			}
-		}
-
-		if ( verbose ) {
-			edividerWithText("IAS Report - JSON - Required Fields");
-			if ( version >= 3 ) {
-				eprintf("version               = %d\n",
-					reportObj["version"].ToInt());
-			}
-			eprintf("id:                   = %s\n",
-				reportObj["id"].ToString().c_str());
-			eprintf("timestamp             = %s\n",
-				reportObj["timestamp"].ToString().c_str());
-			eprintf("isvEnclaveQuoteStatus = %s\n",
-				reportObj["isvEnclaveQuoteStatus"].ToString().c_str());
-			eprintf("isvEnclaveQuoteBody   = %s\n",
-				reportObj["isvEnclaveQuoteBody"].ToString().c_str());
-
-			edividerWithText("IAS Report - JSON - Optional Fields");
-
-			eprintf("platformInfoBlob  = %s\n",
-				reportObj["platformInfoBlob"].ToString().c_str());
-			eprintf("revocationReason  = %s\n",
-				reportObj["revocationReason"].ToString().c_str());
-			eprintf("pseManifestStatus = %s\n",
-				reportObj["pseManifestStatus"].ToString().c_str());
-			eprintf("pseManifestHash   = %s\n",
-				reportObj["pseManifestHash"].ToString().c_str());
-			eprintf("nonce             = %s\n",
-				reportObj["nonce"].ToString().c_str());
-			eprintf("epidPseudonym     = %s\n",
-				reportObj["epidPseudonym"].ToString().c_str());
-			edivider();
-		}
-
-    /*
-     * If the report returned a version number (API v3 and above), make
-     * sure it matches the API version we used to fetch the report.
-	 *
-	 * For API v3 and up, this field MUST be in the report.
-     */
-
-	if ( reportObj.hasKey("version") ) {
-		unsigned int rversion= (unsigned int) reportObj["version"].ToInt();
-		if ( verbose )
-			eprintf("+++ Verifying report version against API version\n");
-		if ( version != rversion ) {
-			eprintf("Report version %u does not match API version %u\n",
-				rversion , version);
-			delete req;
-			return 0;
-		}
-	} else if ( version >= 3 ) {
-		eprintf("attestation report version required for API version >= 3\n");
-		delete req;
-		return 0;
-	}
-
-	/*
-	 * This sample's attestion policy is based on isvEnclaveQuoteStatus:
-	 *
-	 *   1) if "OK" then return "Trusted"
-	 *
- 	 *   2) if "CONFIGURATION_NEEDED" then return
-	 *       "NotTrusted_ItsComplicated" when in --strict-trust-mode
-	 *        and "Trusted_ItsComplicated" otherwise
-	 *
-	 *   3) return "NotTrusted" for all other responses
-	 *
-	 *
-	 * ItsComplicated means the client is not trusted, but can
-	 * conceivable take action that will allow it to be trusted
-	 * (such as a BIOS update).
- 	 */
-
-	/*
-	 * Simply check to see if status is OK, else enclave considered
-	 * not trusted
-	 */
-
-	memset(msg4, 0, sizeof(ra_msg4_t));
-
-	if ( verbose ) edividerWithText("ISV Enclave Trust Status");
-
-	if ( !(reportObj["isvEnclaveQuoteStatus"].ToString().compare("OK"))) {
-		msg4->status = Trusted;
-		if ( verbose ) eprintf("Enclave TRUSTED\n");
-	} else if ( !(reportObj["isvEnclaveQuoteStatus"].ToString().compare("CONFIGURATION_NEEDED"))) {
-		if ( strict_trust ) {
-			msg4->status = NotTrusted_ItsComplicated;
-			if ( verbose ) eprintf("Enclave NOT TRUSTED and COMPLICATED - Reason: %s\n",
-				reportObj["isvEnclaveQuoteStatus"].ToString().c_str());
-		} else {
-			if ( verbose ) eprintf("Enclave TRUSTED and COMPLICATED - Reason: %s\n",
-				reportObj["isvEnclaveQuoteStatus"].ToString().c_str());
-			msg4->status = Trusted_ItsComplicated;
-		}
-	} else if ( !(reportObj["isvEnclaveQuoteStatus"].ToString().compare("GROUP_OUT_OF_DATE"))) {
-		msg4->status = NotTrusted_ItsComplicated;
-		if ( verbose ) eprintf("Enclave NOT TRUSTED and COMPLICATED - Reason: %s\n",
-			reportObj["isvEnclaveQuoteStatus"].ToString().c_str());
-	} else {
-		msg4->status = NotTrusted;
-		if ( verbose ) eprintf("Enclave NOT TRUSTED - Reason: %s\n",
-			reportObj["isvEnclaveQuoteStatus"].ToString().c_str());
-	}
-
-
-	/* Check to see if a platformInfoBlob was sent back as part of the
-	 * response */
-
-	if (!reportObj["platformInfoBlob"].IsNull()) {
-		if ( verbose ) eprintf("A Platform Info Blob (PIB) was provided by the IAS\n");
-
-		/* The platformInfoBlob has two parts, a TVL Header (4 bytes),
-		 * and TLV Payload (variable) */
-
-		string pibBuff = reportObj["platformInfoBlob"].ToString();
-
-		/* remove the TLV Header (8 base16 chars, ie. 4 bytes) from
-		 * the PIB Buff. */
-
-		pibBuff.erase(pibBuff.begin(), pibBuff.begin() + (4*2));
-
-		int ret = from_hexstring ((unsigned char *)&msg4->platformInfoBlob,
-			pibBuff.c_str(), pibBuff.length()/2);
-	} else {
-		if ( verbose ) eprintf("A Platform Info Blob (PIB) was NOT provided by the IAS\n");
-	}
-
-		delete req;
-		return 1;
-	}
-
-	eprintf("attestation query returned %lu: \n", status);
-
-	switch(status) {
-		case IAS_QUERY_FAILED:
-			eprintf("Could not query IAS\n");
-			break;
-		case IAS_BADREQUEST:
-			eprintf("Invalid payload\n");
-			break;
-		case IAS_UNAUTHORIZED:
-			eprintf("Failed to authenticate or authorize request\n");
-			break;
-		case IAS_SERVER_ERR:
-			eprintf("An internal error occurred on the IAS server\n");
-			break;
-		case IAS_UNAVAILABLE:
-			eprintf("Service is currently not able to process the request. Try again later.\n");
-			break;
-		case IAS_INTERNAL_ERROR:
-			eprintf("An internal error occurred while processing the IAS response\n");
-			break;
-		case IAS_BAD_CERTIFICATE:
-			eprintf("The signing certificate could not be validated\n");
-			break;
-		case IAS_BAD_SIGNATURE:
-			eprintf("The report signature could not be validated\n");
-			break;
-		default:
-			if ( status >= 100 && status < 600 ) {
-				eprintf("Unexpected HTTP response code\n");
-			} else {
-				eprintf("An unknown error occurred.\n");
-			}
-	}
-
-	delete req;
-
-	return 0;
-}
-
 // Break a URL into server and port. NOTE: This is a simplistic algorithm.
 
 int get_proxy(char **server, unsigned int *port, const char *url)
@@ -1571,8 +1126,6 @@ void usage ()
 {
 	cerr << "usage: sp [ options ] [ port ]" NL
 "Required:" NL
-"  -A, --ias-signing-cafile=FILE" NL
-"                           Specify the IAS Report Signing CA file." NNL
 "  -N, --mrsigner=HEXSTRING" NL
 "                           Specify the MRSIGNER value of encalves that" NL
 "                           are allowed to attest. Enclaves signed by" NL
@@ -1589,24 +1142,7 @@ void usage ()
 "  -S, --spid-file=FILE     Set the SPID from a file containg a 32-byte" NL
 "                           ASCII hex string." NNL
 "  -s, --spid=HEXSTRING     Set the SPID from a 32-byte ASCII hex string." NNL
-"Required (one of):" NL
-"  -I, --ias-pri-api-key-file=FILE" NL
-"                           Set the IAS Primary Subscription Key from a" NL
-"                           file containing a 32-byte ASCII hex string." NNL
-"  -i, --ias-pri-api-key=HEXSTRING" NL
-"                           Set the IAS Primary Subscription Key from a" NL
-"                           32-byte ASCII hex string." NNL
-"Required (one of):" NL
-"  -J, --ias-sec-api-key-file=FILE" NL
-"                           Set the IAS Secondary Subscription Key from a" NL
-"                           file containing a 32-byte ASCII hex string." NNL
-"  -j, --ias-sec-api-key=HEXSTRING" NL
-"                           Set the IAS Secondary Subscription Key from a" NL
-"                           32-byte ASCII hex string." NNL
 "Optional:" NL
-"  -B, --ca-bundle-file=FILE" NL
-"                           Use the CA certificate bundle at FILE (default:" NL
-"                           " << DEFAULT_CA_BUNDLE << ")" NNL
 "  -D, --no-debug-enclave   Reject Debug-mode enclaves (default: accept)" NNL
 "  -G, --list-agents        List available user agent names for --user-agent" NNL
 "  -K, --service-key-file=FILE" NL
@@ -1614,18 +1150,10 @@ void usage ()
 "                           format (default: use hardcoded key). The " NL
 "                           client must be given the corresponding public" NL
 "                           key. Can't combine with --key." NNL
-"  -P, --production         Query the production IAS server instead of dev." NNL
-"  -X, --strict-trust-mode  Don't trust enclaves that receive a " NL
-"                           CONFIGURATION_NEEDED response from IAS " NL
-"                           (default: trust)" NNL
 "  -d, --debug              Print debug information to stderr." NNL
-"  -g, --user-agent=NAME    Use NAME as the user agent for contacting IAS." NNL
 "  -k, --key=HEXSTRING      The private key as a hex string. See --key-file" NL
 "                           for notes. Can't combine with --key-file." NNL
 "  -l, --linkable           Request a linkable quote (default: unlinkable)." NNL
-"  -p, --proxy=PROXYURL     Use the proxy server at PROXYURL when contacting" NL
-"                           IAS. Can't combine with --no-proxy" NNL
-"  -r, --api-version=N      Use version N of the IAS API (default: " << to_string(IAS_API_DEF_VERSION) << ")" NNL
 "  -v, --verbose            Be verbose. Print message structure details and" NL
 "                           the results of intermediate operations to stderr." NNL
 "  -x, --no-proxy           Do not use a proxy (force a direct connection), " NL

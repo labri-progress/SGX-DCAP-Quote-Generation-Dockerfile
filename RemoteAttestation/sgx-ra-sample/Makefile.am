@@ -84,12 +84,9 @@ client_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
 ## sp
 
-sp_SOURCES = sp.cpp agent_wget.cpp iasrequest.cpp enclave_verify.c $(common)
+sp_SOURCES = sp.cpp enclave_verify.c $(common)
 BUILT_SOURCES += policy
 EXTRA_sp_DEPENDENCIES = Enclave.signed.so
-if AGENT_CURL
-sp_SOURCES += agent_curl.cpp
-endif
 
 ## mrsigner (helper app)
 
@@ -101,7 +98,7 @@ policy: mrsigner policy.in Enclave.signed.so
 	sed -e "s^@MRSIGNER@^`./mrsigner.sh enclave_sigstruct_raw`^" policy.in > policy
 	rm -f enclave_sigstruct_raw
 
-sp_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@ @CURL_LDFLAGS@
+sp_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 mrsigner_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
 ## Library flags. At minimum, an Intel SGX application will need:
@@ -121,4 +118,4 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 
 mrsigner_LDADD=-lcrypto
 
-sp_LDADD=-lcrypto @CURL_LIBS@
+sp_LDADD=-lcrypto
