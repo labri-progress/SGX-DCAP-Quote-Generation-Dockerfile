@@ -657,7 +657,7 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 
 	if (ecdsa_quote_verification((uint8_t*) &msg3->quote, quote_sz) != 0) {
 		eprintf("Invalid quote.\n");
-		return 0;
+		msg4->status= NotTrusted;
 	}
 
 	/*

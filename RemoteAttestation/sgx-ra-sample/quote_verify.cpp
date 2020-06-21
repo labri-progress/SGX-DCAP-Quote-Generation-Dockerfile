@@ -8,6 +8,8 @@
 #include "Enclave_u.h"
 #include "sgx_ql_quote.h"
 #include "sgx_dcap_quoteverify.h"
+#include "qve_header.h"
+#include "time.h"
 
 using namespace std;
 
@@ -68,16 +70,43 @@ int ecdsa_quote_verification(uint8_t *quote, uint32_t quote_size)
         printf("\tError: App: sgx_qv_verify_quote failed: 0x%04x\n", qve_ret);
     }
 
+    time_t tcbLevelDate = ((sgx_ql_qv_supplemental_t*) p_supplemental_data)->tcb_level_date_tag;
+    struct tm minTcbLevelDateInfo;
+
+    // TODO: improve this
+    // Hardcode the minimal date accepted
+    minTcbLevelDateInfo.tm_year = 119; // 2019
+    minTcbLevelDateInfo.tm_mon = 4; // May
+    minTcbLevelDateInfo.tm_mday = 15;
+    minTcbLevelDateInfo.tm_sec = 0;
+    minTcbLevelDateInfo.tm_min = 0;
+    minTcbLevelDateInfo.tm_hour = 0;
+
+    time_t minTcbLevelDate = mktime(&minTcbLevelDateInfo);
+
     //check verification result
     //
     switch (p_quote_verification_result)
     {
     case SGX_QL_QV_RESULT_OK:
-    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED: // TODO: fix this error
+    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
         printf("\tInfo: App: Verification completed successfully.\n");
+
         ret = 0;
         break;
-    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
+    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
+        // The CPU this was tested on was not up to date... so we adopt a less trict policy
+        printf("\tInfo: App: CPU out of date (%s). Checking if this is acceptable...", ctime(&tcbLevelDate));
+        printf(" (min date is %s)\n", ctime(&minTcbLevelDate));
+
+        if (minTcbLevelDate <= tcbLevelDate) {
+            printf("ok...\n");
+            ret = 0;
+        } else {
+            printf("too old...\n");
+            ret = 1;
+        }
+        break;
     case SGX_QL_QV_RESULT_OUT_OF_DATE:
     // case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
     case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
@@ -94,5 +123,5 @@ int ecdsa_quote_verification(uint8_t *quote, uint32_t quote_size)
         break;
     }
 
-    return 0;
+    return ret;
 }
