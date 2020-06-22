@@ -118,4 +118,4 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 
 mrsigner_LDADD=-lcrypto
 
-sp_LDADD=-lsgx_dcap_ql -L../dcap_quoteverify/linux -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto
+sp_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto

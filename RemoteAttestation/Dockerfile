@@ -45,9 +45,6 @@ CMD ./aesm_service --no-daemon
 # The app
 FROM builder as sample
 
-WORKDIR /var/app/SGXDataCenterAttestationPrimitives
-COPY ./SGXDataCenterAttestationPrimitives .
-
 WORKDIR /var/app/sgx-ra-sample
 COPY ./sgx-ra-sample .
 
