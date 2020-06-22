@@ -12,13 +12,7 @@ A Dockerfile is provided that allows to easily launch the different components o
 Installation
 ------------
 
-The host's CPU must support Flexible Launch Control (FLC).
-You need to install the driver on it using:
-```
-wget https://download.01.org/intel-sgx/latest/dcap-latest/linux/distro/ubuntuServer18.04/sgx_linux_x64_driver_1.33.bin
-chmod 777 sgx_linux_x64_driver_1.33.bin
-sudo ./sgx_linux_x64_driver_1.33.bin
-```
+The host's CPU must support Flexible Launch Control (FLC) and have the SGX DCAP Driver installed (refer to the root [README](../README.md) of this repository for the installation procedure).
 
 You also need to install and configure the cache server (PCCS):
 ```
