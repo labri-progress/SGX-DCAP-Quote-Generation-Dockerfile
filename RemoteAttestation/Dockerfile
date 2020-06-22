@@ -26,7 +26,7 @@ RUN echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bio
 RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
 RUN apt-get update
 
-RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev libsgx-quote-ex-dev libsgx-ae-qe3 libsgx-ae-qve libsgx-epid-dev libsgx-uae-service sgx-aesm-service libsgx-aesm-ecdsa-plugin libsgx-aesm-quote-ex-plugin libsgx-dcap-default-qpl-dev
+RUN apt-get install -y libsgx-dcap-ql-dev libsgx-uae-service libsgx-dcap-default-qpl-dev
 
 # We're using a local server with an invalid https certificate
 RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
@@ -35,6 +35,8 @@ RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs 
 # AESM services
 FROM builder as aesm
 WORKDIR /opt/intel/sgx-aesm-service/aesm
+RUN apt-get install -y sgx-aesm-service
+
 USER aesmd
 CMD LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/sgx-aesm-service/aesm ./aesm_service --no-daemon
 

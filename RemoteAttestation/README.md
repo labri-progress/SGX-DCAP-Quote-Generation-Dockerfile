@@ -1,7 +1,7 @@
 DCAP Remote Attestation
 =======================
 
-This folder demonstrates DCAP Remote Attestation.
+This sample demonstrates DCAP Remote Attestation.
 It is an adaptation to DCAP of [intel/sgx-ra-sample](https://github.com/intel/sgx-ra-sample).
 
 A Dockerfile is provided that allows to easily launch the different components of the sample:
