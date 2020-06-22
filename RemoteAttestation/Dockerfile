@@ -28,9 +28,15 @@ RUN apt-get update
 
 RUN apt-get install -y libsgx-enclave-common-dev libsgx-urts libsgx-dcap-ql-dev libsgx-quote-ex-dev libsgx-ae-qe3 libsgx-ae-qve libsgx-epid-dev libsgx-uae-service sgx-aesm-service libsgx-aesm-ecdsa-plugin libsgx-aesm-quote-ex-plugin libsgx-dcap-default-qpl-dev
 
+# We're using a local server with an invalid https certificate
 RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
 
 
+# AESM services
+FROM builder as aesm
+WORKDIR /opt/intel/sgx-aesm-service/aesm
+USER aesmd
+CMD LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/intel/sgx-aesm-service/aesm ./aesm_service --no-daemon
 
 
 # The app
@@ -48,7 +54,6 @@ RUN SGX_MODE=HW make
 RUN chmod 777 .
 
 RUN adduser -q --disabled-password --gecos "" --no-create-home sgxuser
-
 
 
 FROM sample as client
