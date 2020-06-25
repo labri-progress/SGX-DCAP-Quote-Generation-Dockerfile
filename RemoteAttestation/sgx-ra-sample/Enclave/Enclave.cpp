@@ -15,15 +15,10 @@ in the License.
 
 */
 
-#ifndef _WIN32
 #include "../config.h"
-#endif
 #include "Enclave_t.h"
 #include <string.h>
 #include <sgx_utils.h>
-#ifdef _WIN32
-#include <sgx_tae_service.h>
-#endif
 #include <sgx_tkey_exchange.h>
 #include <sgx_tcrypto.h>
 
@@ -72,7 +67,7 @@ static const sgx_ec256_public_t def_service_public_key = {
  */
 
 /*
- * This doesn't really need to be a C++ source file, but a bug in 
+ * This doesn't really need to be a C++ source file, but a bug in
  * 2.1.3 and earlier implementations of the SGX SDK left a stray
  * C++ symbol in libsgx_tkey_exchange.so so it won't link without
  * a C++ compiler. Just making the source C++ was the easiest way
@@ -88,68 +83,17 @@ sgx_status_t get_report(sgx_report_t *report, sgx_target_info_t *target_info)
 #endif
 }
 
-#ifdef _WIN32
-size_t get_pse_manifest_size ()
-{
-	return sizeof(sgx_ps_sec_prop_desc_t);
-}
-
-sgx_status_t get_pse_manifest(char *buf, size_t sz)
-{
-	sgx_ps_sec_prop_desc_t ps_sec_prop_desc;
-	sgx_status_t status= SGX_ERROR_SERVICE_UNAVAILABLE;
-	int retries= PSE_RETRIES;
-
-	do {
-		status= sgx_create_pse_session();
-		if ( status != SGX_SUCCESS ) return status;
-	} while (status == SGX_ERROR_BUSY && retries--);
-	if ( status != SGX_SUCCESS ) return status;
-
-	status= sgx_get_ps_sec_prop(&ps_sec_prop_desc);
-	if ( status != SGX_SUCCESS ) return status;
-
-	memcpy(buf, &ps_sec_prop_desc, sizeof(ps_sec_prop_desc));
-
-	sgx_close_pse_session();
-
-	return status;
-}
-#endif
-
 sgx_status_t enclave_ra_init(sgx_ec256_public_t key, int b_pse,
 	sgx_ra_context_t *ctx, sgx_status_t *pse_status)
 {
 	sgx_status_t ra_status;
 
 	/*
-	 * If we want platform services, we must create a PSE session 
+	 * If we want platform services, we must create a PSE session
 	 * before calling sgx_ra_init()
 	 */
 
-#ifdef _WIN32
-	if ( b_pse ) {
-		int retries= PSE_RETRIES;
-		do {
-			*pse_status= sgx_create_pse_session();
-			if ( *pse_status != SGX_SUCCESS ) return SGX_ERROR_UNEXPECTED;
-		} while (*pse_status == SGX_ERROR_BUSY && retries--);
-		if ( *pse_status != SGX_SUCCESS ) return SGX_ERROR_UNEXPECTED;
-	}
-
-	ra_status= sgx_ra_init(&key, b_pse, ctx);
-
-	if ( b_pse ) {
-		int retries= PSE_RETRIES;
-		do {
-			*pse_status= sgx_close_pse_session();
-			if ( *pse_status != SGX_SUCCESS ) return SGX_ERROR_UNEXPECTED;
-		} while (*pse_status == SGX_ERROR_BUSY && retries--);
-		if ( *pse_status != SGX_SUCCESS ) return SGX_ERROR_UNEXPECTED;
-	}
-#else
 	ra_status= sgx_ra_init(&key, 0, ctx);
-#endif
 
 	return ra_status;
 }
@@ -174,7 +118,7 @@ sgx_status_t enclave_ra_get_key_hash(sgx_status_t *get_keys_ret,
 	sgx_ra_key_128_t k;
 
 	// First get the requested key which is one of:
-	//  * SGX_RA_KEY_MK 
+	//  * SGX_RA_KEY_MK
 	//  * SGX_RA_KEY_SK
 	// per sgx_ra_get_keys().
 
@@ -183,7 +127,7 @@ sgx_status_t enclave_ra_get_key_hash(sgx_status_t *get_keys_ret,
 
 	/* Now generate a SHA hash */
 
-	sha_ret= sgx_sha256_msg((const uint8_t *) &k, sizeof(k), 
+	sha_ret= sgx_sha256_msg((const uint8_t *) &k, sizeof(k),
 		(sgx_sha256_hash_t *) hash); // Sigh.
 
 	/* Let's be thorough */
