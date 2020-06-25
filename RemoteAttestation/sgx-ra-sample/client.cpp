@@ -20,9 +20,6 @@ using namespace std;
 
 #include "config.h"
 #include "Enclave_u.h"
-#if !defined(SGX_HW_SIM)&&!defined(_WIN32)
-#include "sgx_stub.h"
-#endif
 #include <stdlib.h>
 #include <limits.h>
 #include <stdio.h>

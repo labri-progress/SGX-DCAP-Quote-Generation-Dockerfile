@@ -16,9 +16,7 @@ in the License.
 */
 
 
-#ifndef _WIN32
 #include "config.h"
-#endif
 
 #include <stdlib.h>
 #include <limits.h>
@@ -26,15 +24,9 @@ in the License.
 #include <sys/stat.h>
 #include <string.h>
 #include <sys/types.h>
-#ifdef _WIN32
-#include <intrin.h>
-#include <openssl/applink.c>
-#include "win32/getopt.h"
-#else
 #include <signal.h>
 #include <getopt.h>
 #include <unistd.h>
-#endif
 #include <sgx_key_exchange.h>
 #include <sgx_report.h>
 #include <openssl/evp.h>
@@ -58,10 +50,6 @@ using namespace std;
 #include <string>
 #include <iostream>
 #include <algorithm>
-
-#ifdef _WIN32
-#define strdup(x) _strdup(x)
-#endif
 
 static const unsigned char def_service_private_key[32] = {
 	0x90, 0xe7, 0x6c, 0xbb, 0x2d, 0x52, 0xa1, 0xce,
@@ -93,9 +81,7 @@ typedef struct config_struct {
 } config_t;
 
 void usage();
-#ifndef _WIN32
 void cleanup_and_exit(int signo);
-#endif
 
 int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a,
 	config_t *config);
@@ -131,15 +117,12 @@ int main(int argc, char *argv[])
 	config_t config;
 	int oops;
 	char *port= NULL;
-#ifndef _WIN32
 	struct sigaction sact;
-#endif
 
 	/* Command line options */
 
 	static struct option long_opt[] =
 	{
-		{"ca-bundle",				required_argument,	0, 'B'},
 		{"no-debug-enclave",		no_argument,		0, 'D'},
 		{"service-key-file",		required_argument,	0, 'K'},
 		{"mrsigner",				required_argument,  0, 'N'},
@@ -382,8 +365,6 @@ int main(int argc, char *argv[])
 			return 1;
 		}
 	}
-
-#ifndef _WIN32
 	/*
 	 * Install some rudimentary signal handlers. We just want to make
 	 * sure we gracefully shutdown the listen socket before we exit
@@ -398,7 +379,6 @@ int main(int argc, char *argv[])
 	if ( sigaction(SIGINT, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
 	if ( sigaction(SIGTERM, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
 	if ( sigaction(SIGQUIT, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
-#endif
 
  	/* If we're running in server mode, we'll block here.  */
 
@@ -675,9 +655,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	 * is compiled.
 	 */
 
-#ifndef _WIN32
-/* Windows implementation is not available yet */
-
 	if ( ! verify_enclave_identity(config->req_mrsigner,
 		config->req_isv_product_id, config->min_isvsvn,
 		config->allow_debug_enclave, r) ) {
@@ -685,7 +662,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		eprintf("Invalid enclave.\n");
 		msg4->status= NotTrusted;
 	}
-#endif
 
 	if ( verbose ) {
 		edivider();
@@ -1067,8 +1043,6 @@ int get_proxy(char **server, unsigned int *port, const char *url)
 	return 1;
 }
 
-#ifndef _WIN32
-
 /* We don't care which signal it is since we're shutting down regardless */
 
 void cleanup_and_exit(int signo)
@@ -1086,7 +1060,6 @@ void cleanup_and_exit(int signo)
 
 	exit(1);
 }
-#endif
 
 #define NNL <<endl<<endl<<
 #define NL <<endl<<
