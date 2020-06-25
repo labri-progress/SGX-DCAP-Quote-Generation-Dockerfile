@@ -36,7 +36,6 @@ RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs 
 FROM builder as aesm
 RUN apt-get install -y sgx-aesm-service
 
-USER aesmd
 WORKDIR /opt/intel/sgx-aesm-service/aesm
 ENV LD_LIBRARY_PATH=.
 CMD ./aesm_service --no-daemon

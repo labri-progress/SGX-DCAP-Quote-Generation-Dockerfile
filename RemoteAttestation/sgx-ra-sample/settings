@@ -36,6 +36,10 @@ USE_PLATFORM_SERVICES=0
 # Debugging options
 #======================================================================
 
+# Set to non-zero to activate DCAP attestation
+
+DCAP=0
+
 # Set to non-zero for verbose output
 
 VERBOSE=0

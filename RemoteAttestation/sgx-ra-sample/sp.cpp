@@ -78,6 +78,7 @@ typedef struct config_struct {
 	sgx_prod_id_t req_isv_product_id;
 	sgx_isv_svn_t min_isvsvn;
 	int allow_debug_enclave;
+	bool no_dcap;
 } config_t;
 
 void usage();
@@ -86,7 +87,7 @@ void cleanup_and_exit(int signo);
 int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a,
 	config_t *config);
 
-int process_msg01 (MsgIO *msg, sgx_ra_msg1_t *msg1,
+int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1,
 	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config,
 	ra_session_t *session);
 
@@ -124,6 +125,7 @@ int main(int argc, char *argv[])
 	static struct option long_opt[] =
 	{
 		{"no-debug-enclave",		no_argument,		0, 'D'},
+		{"no-dcap",					no_argument,		0, 'c'},
 		{"service-key-file",		required_argument,	0, 'K'},
 		{"mrsigner",				required_argument,  0, 'N'},
 		{"production",				no_argument,		0, 'P'},
@@ -168,7 +170,7 @@ int main(int argc, char *argv[])
 		unsigned long val;
 
 		c = getopt_long(argc, argv,
-			"DK:N:PR:S:V:X:dhk:lp:r:s:vxz",
+			"DcK:N:PR:S:V:X:dhk:lp:r:s:vxz",
 			long_opt, &opt_index);
 		if (c == -1) break;
 
@@ -179,6 +181,10 @@ int main(int argc, char *argv[])
 
 		case 'D':
 			config.allow_debug_enclave= 0;
+			break;
+
+		case 'c':
+			config.no_dcap= true;
 			break;
 
 
@@ -392,7 +398,7 @@ int main(int argc, char *argv[])
 
 		/* Read message 0 and 1, then generate message 2 */
 
-		if ( ! process_msg01(msgio, &msg1, &msg2, &sigrl, &config,
+		if ( ! process_msg1(msgio, &msg1, &msg2, &sigrl, &config,
 			&session) ) {
 
 			eprintf("error processing msg1\n");
@@ -565,22 +571,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		edivider();
 	}
 
-	/* Verify that the EPID group ID in the quote matches the one from msg1 */
-
-	if ( debug ) {
-		eprintf("+++ Validating quote's epid_group_id against msg1\n");
-		eprintf("msg1.egid = %s\n",
-			hexstring(msg1->gid, sizeof(sgx_epid_group_id_t)));
-		eprintf("msg3.quote.epid_group_id = %s\n",
-			hexstring(&q->epid_group_id, sizeof(sgx_epid_group_id_t)));
-	}
-
-	if ( memcmp(msg1->gid, &q->epid_group_id, sizeof(sgx_epid_group_id_t)) ) {
-		eprintf("EPID GID mismatch. Attestation failed.\n");
-		free(msg3);
-		return 0;
-	}
-
 
 	msg4->status = Trusted;
 
@@ -636,8 +626,13 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	}
 
 	if (ecdsa_quote_verification((uint8_t*) &msg3->quote, quote_sz) != 0) {
-		eprintf("Invalid quote.\n");
-		msg4->status= NotTrusted;
+		eprintf("Invalid quote (Verification failed).\n");
+
+		if (!config->no_dcap) {
+			msg4->status= NotTrusted;
+		} else {
+			eprintf("Ignoring this error (no dcap mode: attestation disabled).\n");
+		}
 	}
 
 	/*
@@ -735,17 +730,13 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 }
 
 /*
- * Read and process message 0 and message 1. These messages are sent by
- * the client concatenated together for efficiency (msg0||msg1).
+ * Read and process message 1.
  */
 
-int process_msg01 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
+int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config, ra_session_t *session)
 {
-	struct msg01_struct {
-		uint32_t msg0_extended_epid_group_id;
-		sgx_ra_msg1_t msg1;
-	} *msg01;
+	sgx_ra_msg1_t *msg1_pt;
 	size_t blen= 0;
 	char *buffer= NULL;
 	unsigned char digest[32], r[32], s[32], gb_ga[128];
@@ -761,7 +752,7 @@ int process_msg01 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 
 	fprintf(stderr, "Waiting for msg0||msg1\n");
 
-	rv= msgio->read((void **) &msg01, NULL);
+	rv= msgio->read((void **) &msg1_pt, NULL);
 	if ( rv == -1 ) {
 		eprintf("system error reading msg0||msg1\n");
 		return 0;
@@ -770,27 +761,8 @@ int process_msg01 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		return 0;
 	}
 
-	if ( verbose ) {
-		edividerWithText("Msg0 Details (from Client)");
-		eprintf("msg0.extended_epid_group_id = %u\n",
-			 msg01->msg0_extended_epid_group_id);
-		edivider();
-	}
-
-	/* According to the Intel SGX Developer Reference
-	 * "Currently, the only valid extended Intel(R) EPID group ID is zero. The
-	 * server should verify this value is zero. If the Intel(R) EPID group ID
-	 * is not zero, the server aborts remote attestation"
-	 */
-
-	if ( msg01->msg0_extended_epid_group_id != 0 ) {
-		eprintf("msg0 Extended Epid Group ID is not zero.  Exiting.\n");
-		free(msg01);
-		return 0;
-	}
-
 	// Pass msg1 back to the pointer in the caller func
-	memcpy(msg1, &msg01->msg1, sizeof(sgx_ra_msg1_t));
+	memcpy(msg1, msg1_pt, sizeof(sgx_ra_msg1_t));
 
 	if ( verbose ) {
 		edividerWithText("Msg1 Details (from Client)");
@@ -810,7 +782,7 @@ int process_msg01 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	Gb= key_generate();
 	if ( Gb == NULL ) {
 		eprintf("Could not create a session key\n");
-		free(msg01);
+		free(msg1_pt);
 		return 0;
 	}
 
@@ -824,7 +796,7 @@ int process_msg01 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 
 	if ( ! derive_kdk(Gb, session->kdk, msg1->g_a, config) ) {
 		eprintf("Could not derive the KDK\n");
-		free(msg01);
+		free(msg1_pt);
 		return 0;
 	}
 
@@ -933,7 +905,7 @@ int process_msg01 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		edivider();
 	}
 
-	free(msg01);
+	free(msg1_pt);
 
 	return 1;
 }
