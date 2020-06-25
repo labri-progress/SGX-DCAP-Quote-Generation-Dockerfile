@@ -71,7 +71,7 @@ void crypto_perror (const char *prefix)
 }
 
 /*==========================================================================
- * EC key functions 
+ * EC key functions
  *========================================================================== */
 
 /* Load an EC key from a file in PEM format */
@@ -164,7 +164,7 @@ int key_load (EVP_PKEY **pkey, const char *hexstring, int keytype)
 		EC_POINT_free(pubpt);
 	} else if ( keytype == KEY_PUBLIC ) {
 		/*
-		 * hex2bn expects a NULL terminated string, so need to 
+		 * hex2bn expects a NULL terminated string, so need to
 		 * pull out the x component
 		 */
 
@@ -187,7 +187,7 @@ int key_load (EVP_PKEY **pkey, const char *hexstring, int keytype)
 			error_type= e_crypto;
 			goto cleanup;
 		}
-		
+
 	} else {
 		error_type= e_api;
 		goto cleanup;
@@ -220,19 +220,11 @@ int key_load_file (EVP_PKEY **key, const char *filename, int keytype)
 
 	*key= EVP_PKEY_new();
 
-#ifdef _WIN32
-	if ((fopen_s(&fp, filename, "r")) != 0) {
-		error_type = e_system;
-		ep = filename;
-		return 0;
-	}
-#else
 	if ( (fp= fopen(filename, "r")) == NULL ) {
 		error_type= e_system;
 		ep= filename;
 		return 0;
 	}
-#endif
 
 	if ( keytype == KEY_PRIVATE ) PEM_read_PrivateKey(fp, key, NULL, NULL);
 	else if ( keytype == KEY_PUBLIC ) PEM_read_PUBKEY(fp, key, NULL, NULL);
@@ -305,7 +297,7 @@ cleanup:
 
 EVP_PKEY *key_private_from_bytes (const unsigned char buf[32])
 {
-	
+
 	EC_KEY *key= NULL;
 	EVP_PKEY *pkey= NULL;
 	BIGNUM *prv= NULL;
@@ -645,7 +637,7 @@ int ecdsa_sign(unsigned char *msg, size_t mlen, EVP_PKEY *key,
 	if ( eckey == NULL ) {
 		error_type= e_crypto;
 		goto cleanup;
-	}  
+	}
 
 	/* In ECDSA signing, we sign the sha256 digest of the message */
 
@@ -688,20 +680,11 @@ int cert_load_file (X509 **cert, const char *filename)
 
 	error_type= e_none;
 
-
-#ifdef _WIN32
-	if ((fopen_s(&fp, filename, "r")) != 0) {
-		error_type = e_system;
-		ep = filename;
-		return 0;
-	}
-#else
 	if ((fp = fopen(filename, "r")) == NULL) {
 		error_type = e_system;
 		ep = filename;
 		return 0;
 	}
-#endif
 
 
 	*cert= PEM_read_X509(fp, NULL, NULL, NULL);
@@ -822,4 +805,3 @@ void cert_stack_free (STACK_OF(X509) *chain)
 {
 	sk_X509_free(chain);
 }
-

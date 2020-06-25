@@ -35,11 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #ifdef UAE_SERVICE_HAS_BOOL
 typedef unsigned char bool;
 #endif
-#ifdef _WIN32
-# include <Windows.h>
-#else
 # include <dlfcn.h>
-#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include "sgx_stub.h"
@@ -151,15 +147,10 @@ static void *_load_symbol(void *handle, const char *symbol, int *status)
 {
 	void *hsym;
 
-#ifdef _WIN32
-	hsym = GetProcAddress((HMODULE)handle, symbol);
-	*status = (dlerr == NULL) ? 1 : -1;
-#else
 	dlerr= dlerror();
 	hsym= dlsym(handle, symbol);
 	dlerr= dlerror();
 	*status= ( dlerr == NULL ) ? 1 : -1;
-#endif
 
 	return hsym;
 }
@@ -168,11 +159,7 @@ static void *_load_symbol(void *handle, const char *symbol, int *status)
 static void *_load_libsgx_uae_service()
 {
 	if ( l_libsgx_uae_service == 0 ) {
-#ifdef _WIN32
-		h_libsgx_uae_service= LoadLibrary("libsgx_uae_service.dll");
-#else
 		h_libsgx_uae_service= dlopen("libsgx_uae_service.so", RTLD_GLOBAL|RTLD_NOW);
-#endif
 		l_libsgx_uae_service= ( h_libsgx_uae_service == NULL ) ? -1 : 1;
 	}
 
@@ -182,11 +169,7 @@ static void *_load_libsgx_uae_service()
 static void *_load_libsgx_urts()
 {
 	if ( l_libsgx_urts == 0 ) {
-#ifdef _WIN32
-		h_libsgx_urts= LoadLibrary("libsgx_urts.dll");
-#else
 		h_libsgx_urts= dlopen("libsgx_urts.so", RTLD_GLOBAL|RTLD_NOW);
-#endif
 		l_libsgx_urts= ( h_libsgx_urts == NULL ) ? -1 : 1;
 	}
 
@@ -195,9 +178,9 @@ static void *_load_libsgx_urts()
 
 int have_sgx_psw()
 {
-	return ( 
+	return (
 		_load_libsgx_uae_service() == NULL ||
-		_load_libsgx_urts() == NULL 
+		_load_libsgx_urts() == NULL
 	) ? 0 : 1;
 }
 

@@ -50,7 +50,7 @@ COPY ./sgx-ra-sample .
 
 RUN ./bootstrap
 RUN ./configure
-RUN SGX_MODE=HW make
+RUN make
 RUN chmod 777 .
 
 RUN adduser -q --disabled-password --gecos "" --no-create-home sgxuser

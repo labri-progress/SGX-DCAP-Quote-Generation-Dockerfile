@@ -4,4 +4,4 @@ docker build --target server --build-arg https_proxy=$https_proxy \
 
 docker run \
   --net="host" `# Binds localhost to the host ip as the client tries to connect to the port exposed by the server part` \
-  --env http_proxy --env https_proxy --device=/dev/sgx/enclave -it sgx_server
+  --env http_proxy --env https_proxy -it sgx_server

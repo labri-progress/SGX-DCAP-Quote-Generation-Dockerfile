@@ -25,19 +25,13 @@ in the License.
 #include <sys/stat.h>
 #include <string.h>
 #include <sys/types.h>
-#ifdef _WIN32
-#include <intrin.h>
-#include <openssl/applink.c>
-#include "win32/getopt.h"
-#else
 #include <getopt.h>
 #include <unistd.h>
-#endif
 #include "crypto.h"
 #include "hexutil.h"
 
 /*
- * From the "Intel(r) 64 and IA-32 Architectures Software Developer 
+ * From the "Intel(r) 64 and IA-32 Architectures Software Developer
  * Manual, Volume 3: System Programming Guide", Chapter 38, Section 13,
  * Table 38-19 "Layout of Enclave Signature Structure (SIGSTRUCT)"
  */
@@ -91,15 +85,10 @@ int main(int argc, char *argv[])
 
 	cssfile= argv[1];
 
-#ifdef _WIN32
-	if (fopen_s(&fp, cssfile, "rb") != 0) {
-		fprintf(stderr, "fopen_s: ");
-#else
 	fp= fopen(cssfile, "r");
 	if ( fp == NULL ) {
 		fprintf(stderr, "%s: ", cssfile);
 		perror("fopen");
-#endif
 		exit(1);
 	}
 
@@ -133,7 +122,7 @@ int main(int argc, char *argv[])
 	exit(1);
 }
 
-void usage () 
+void usage ()
 {
 	fprintf(stderr, "usage: mrsigner cssfile\n");
 	exit(1);

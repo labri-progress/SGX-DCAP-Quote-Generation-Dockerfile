@@ -18,21 +18,8 @@ in the License.
 
 using namespace std;
 
-#ifdef _WIN32
-#pragma comment(lib, "crypt32.lib")
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#else
 #include "config.h"
-#endif
-
-#ifdef _WIN32
-// *sigh*
-# include "vs/client/Enclave_u.h"
-#else
-# include "Enclave_u.h"
-#endif
+#include "Enclave_u.h"
 #if !defined(SGX_HW_SIM)&&!defined(_WIN32)
 #include "sgx_stub.h"
 #endif
@@ -42,15 +29,9 @@ using namespace std;
 #include <time.h>
 #include <sgx_urts.h>
 #include <sys/stat.h>
-#ifdef _WIN32
-#include <intrin.h>
-#include <wincrypt.h>
-#include "win32/getopt.h"
-#else
 #include <openssl/evp.h>
 #include <getopt.h>
 #include <unistd.h>
-#endif
 #include <sgx_uae_service.h>
 #include <sgx_ukey_exchange.h>
 #include <string>
@@ -66,11 +47,7 @@ using namespace std;
 
 #define MAX_LEN 80
 
-#ifdef _WIN32
-# define strdup(x) _strdup(x)
-#else
-# define _rdrand64_step(x) ({ unsigned char err; asm volatile("rdrand %0; setc %1":"=r"(*x), "=qm"(err)); err; })
-#endif
+#define _rdrand64_step(x) ({ unsigned char err; asm volatile("rdrand %0; setc %1":"=r"(*x), "=qm"(err)); err; })
 
 #ifdef __x86_64__
 #define DEF_LIB_SEARCHPATH "/lib:/lib64:/usr/lib:/usr/lib64"
@@ -156,11 +133,7 @@ char verbose= 0;
 #define CLEAR_OPT(x,y)	x=x&~y
 #define OPT_ISSET(x,y)	x&y
 
-#ifdef _WIN32
-# define ENCLAVE_NAME "Enclave.signed.dll"
-#else
-# define ENCLAVE_NAME "Enclave.signed.so"
-#endif
+#define ENCLAVE_NAME "Enclave.signed.so"
 
 int main (int argc, char *argv[])
 {
@@ -181,17 +154,13 @@ int main (int argc, char *argv[])
 	const time_t timeT = time(NULL);
 	struct tm lt, *ltp;
 
-#ifndef _WIN32
 	ltp = localtime(&timeT);
 	if ( ltp == NULL ) {
 		perror("localtime");
 		return 1;
 	}
 	lt= *ltp;
-#else
 
-	localtime_s(&lt, &timeT);
-#endif
 	fprintf(fplog, "%4d-%02d-%02d %02d:%02d:%02d\n",
 		lt.tm_year + 1900,
 		lt.tm_mon + 1,
@@ -208,10 +177,6 @@ int main (int argc, char *argv[])
 	{
 		{"help",		no_argument,		0, 'h'},
 		{"debug",		no_argument,		0, 'd'},
-#ifdef _WIN32
-		{"pse-manifest",
-						no_argument,    	0, 'm'},
-#endif
 		{"nonce",		required_argument,	0, 'n'},
 		{"nonce-file",	required_argument,	0, 'N'},
 		{"rand-nonce",	no_argument,		0, 'r'},
@@ -230,7 +195,7 @@ int main (int argc, char *argv[])
 		int opt_index= 0;
 		unsigned char keyin[64];
 
-		c= getopt_long(argc, argv, "N:P:S:dhlmn:p:rs:vz", long_opt,
+		c= getopt_long(argc, argv, "N:P:S:dhln:p:rs:vz", long_opt,
 			&opt_index);
 		if ( c == -1 ) break;
 
@@ -267,9 +232,6 @@ int main (int argc, char *argv[])
 			break;
 		case 'l':
 			SET_OPT(config.flags, OPT_LINK);
-			break;
-		case 'm':
-			SET_OPT(config.flags, OPT_PSE);
 			break;
 		case 'n':
 			if ( strlen(optarg) < 32 ) {
@@ -384,15 +346,6 @@ int main (int argc, char *argv[])
 
 	/* Launch the enclave */
 
-#ifdef _WIN32
-	status = sgx_create_enclave(ENCLAVE_NAME, SGX_DEBUG_FLAG,
-		&token, &updated, &eid, 0);
-	if (status != SGX_SUCCESS) {
-		fprintf(stderr, "sgx_create_enclave: %s: %08x\n",
-			ENCLAVE_NAME, status);
-		return 1;
-	}
-#else
 	status = sgx_create_enclave_search(ENCLAVE_NAME,
 		SGX_DEBUG_FLAG, &token, &updated, &eid, 0);
 	if ( status != SGX_SUCCESS ) {
@@ -402,7 +355,6 @@ int main (int argc, char *argv[])
 			fprintf(stderr, "Did you forget to set LD_LIBRARY_PATH?\n");
 		return 1;
 	}
-#endif
 
 	do_attestation(eid, &config);
 
@@ -467,17 +419,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 		delete msgio;
 		return 1;
 	}
-
-#ifdef _WIN32
-	/* If we asked for a PSE session, did that succeed? */
-	if (b_pse) {
-		if ( pse_status != SGX_SUCCESS ) {
-			fprintf(stderr, "pse_session: %08x\n", pse_status);
-			delete msgio;
-			return 1;
-		}
-	}
-#endif
 
 	/* Did sgx_ra_init() succeed? */
 	if ( sgxrv != SGX_SUCCESS ) {
@@ -693,15 +634,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 		fprintf(fplog, "\nmsg3.g_a.gy      = ");
 		print_hexstring(stderr, msg3->g_a.gy, sizeof(msg3->g_a.gy));
 		print_hexstring(fplog, msg3->g_a.gy, sizeof(msg3->g_a.gy));
-#ifdef _WIN32
-		fprintf(stderr, "\nmsg3.ps_sec_prop.sgx_ps_sec_prop_desc = ");
-		fprintf(fplog, "\nmsg3.ps_sec_prop.sgx_ps_sec_prop_desc = ");
-		print_hexstring(stderr, msg3->ps_sec_prop.sgx_ps_sec_prop_desc,
-			sizeof(msg3->ps_sec_prop.sgx_ps_sec_prop_desc));
-		print_hexstring(fplog, msg3->ps_sec_prop.sgx_ps_sec_prop_desc,
-			sizeof(msg3->ps_sec_prop.sgx_ps_sec_prop_desc));
-		fprintf(fplog, "\n");
-#endif
 		fprintf(stderr, "\nmsg3.quote       = ");
 		fprintf(fplog, "\nmsg3.quote       = ");
 		print_hexstring(stderr, msg3->quote, msg3_sz-sizeof(sgx_ra_msg3_t));
@@ -864,8 +796,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 /*
  * Search for the enclave file and then try and load it.
  */
-
-#ifndef _WIN32
 sgx_status_t sgx_create_enclave_search (const char *filename, const int edebug,
 	sgx_launch_token_t *token, int *updated, sgx_enclave_id_t *eid,
 	sgx_misc_attribute_t *attr)
@@ -951,8 +881,6 @@ int file_in_searchpath (const char *file, const char *search, char *fullpath,
 	return 0;
 }
 
-#endif
-
 
 void usage ()
 {
@@ -964,9 +892,6 @@ void usage ()
 	fprintf(stderr, "                             provider.\n");
 	fprintf(stderr, "  -d, --debug              Show debugging information\n");
 	fprintf(stderr, "  -l, --linkable           Specify a linkable quote (default: unlinkable)\n");
-#ifdef _WIN32
-	fprintf(stderr, "  -m, --pse-manifest       Include the PSE manifest in the quote\n");
-#endif
 	fprintf(stderr, "  -n, --nonce=HEXSTRING    Set a nonce from a 32-byte ASCII hex string\n");
 	fprintf(stderr, "  -p, --pubkey=HEXSTRING   Specify the public key of the service provider\n");
 	fprintf(stderr, "                             as an ASCII hex string instead of using the\n");
