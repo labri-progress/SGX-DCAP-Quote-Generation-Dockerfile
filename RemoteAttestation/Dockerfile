@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y \
     # Dependencies required by sgx-ra-sample
     autotools-dev \
     automake \
-    xxd
+    xxd \
+    git
 
 # Install the SDK
 WORKDIR /opt/intel
@@ -31,6 +32,14 @@ RUN apt-get install -y libsgx-dcap-ql-dev libsgx-uae-service libsgx-dcap-default
 # We're using a local server with an invalid https certificate
 RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
 
+WORKDIR /var/app/
+RUN git clone https://github.com/intel/intel-sgx-ssl.git intel-sgx-ssl
+ADD https://www.openssl.org/source/openssl-1.1.1g.tar.gz ./intel-sgx-ssl/openssl_source/openssl-1.1.1g.tar.gz
+
+WORKDIR /var/app/intel-sgx-ssl/Linux
+RUN git checkout lin_2.10_1.1.1g
+RUN /bin/bash -c 'make -C sgx/ && make install'
+
 
 # AESM services
 FROM builder as aesm
@@ -46,6 +55,9 @@ FROM builder as sample
 
 WORKDIR /var/app/sgx-ra-sample
 COPY ./sgx-ra-sample .
+
+# Copy prebuilt versions of the QVL and of SGX SSL
+COPY ./SGXDataCenterAttestationPrimitives/SampleCode/QuoteVerificationSample/prebuilt prebuilt
 
 RUN ./bootstrap
 RUN ./configure

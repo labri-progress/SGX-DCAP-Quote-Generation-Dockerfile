@@ -762,8 +762,6 @@ with_sgx_build
 with_sgxssl
 with_sgxsdk
 with_openssldir
-with_curldir
-enable_agent_libcurl
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1411,7 +1409,6 @@ Optional Features:
   --enable-sgx-simulation Use Intel SGX in simulation mode. Implies
                           --enable-sgx (default: disabled)
 
-  --disable-agent-libcurl Disable the libcurl user agent
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -1430,7 +1427,6 @@ Optional Packages:
                           (defaults to auto-detection)
 
   --with-openssl=DIR      Specify location of OpenSSL package
-  --with-curl=DIR         Specify location of curl package
 
 Some influential environment variables:
   CXX         C++ compiler command
@@ -4738,21 +4734,6 @@ fi
 
 
 
-# Check whether --with-curldir was given.
-if test "${with_curldir+set}" = set; then :
-  withval=$with_curldir; curl=$withval
-fi
-
-
-# Check whether --enable-agent-libcurl was given.
-if test "${enable_agent_libcurl+set}" = set; then :
-  enableval=$enable_agent_libcurl;
-else
-  enable_agent_libcurl=yes
-fi
-
-
-
 
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking for grep that handles long lines and -e" >&5
 $as_echo_n "checking for grep that handles long lines and -e... " >&6; }
@@ -5174,97 +5155,6 @@ if test "$openssl" != ""; then :
 
 fi
 
-if test "$enable_agent_libcurl" = "yes"; then :
-
-	old_LIBS="$LIBS"
-	if test "$curl" != ""; then :
-
-		old_CPPFLAGS="$CPPFLAGS"
-		old_LDFLAGS="$LDFLAGS"
-		LDFLAGS="$LDFLAGS -L${curl}/lib"
-		CPPFLAGS="$CPPFLAGS -I${curl}/include"
-
-fi
-	ac_fn_c_check_header_mongrel "$LINENO" "curl/curl.h" "ac_cv_header_curl_curl_h" "$ac_includes_default"
-if test "x$ac_cv_header_curl_curl_h" = xyes; then :
-  use_libcurl=1
-else
-  use_libcurl=0
-fi
-
-
-	if test "$use_libcurl" = "1"; then :
-
-		{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing curl_easy_init" >&5
-$as_echo_n "checking for library containing curl_easy_init... " >&6; }
-if ${ac_cv_search_curl_easy_init+:} false; then :
-  $as_echo_n "(cached) " >&6
-else
-  ac_func_search_save_LIBS=$LIBS
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-/* Override any GCC internal prototype to avoid an error.
-   Use char because int might match the return type of a GCC
-   builtin and then its argument prototype would still apply.  */
-#ifdef __cplusplus
-extern "C"
-#endif
-char curl_easy_init ();
-int
-main ()
-{
-return curl_easy_init ();
-  ;
-  return 0;
-}
-_ACEOF
-for ac_lib in '' curl; do
-  if test -z "$ac_lib"; then
-    ac_res="none required"
-  else
-    ac_res=-l$ac_lib
-    LIBS="-l$ac_lib  $ac_func_search_save_LIBS"
-  fi
-  if ac_fn_c_try_link "$LINENO"; then :
-  ac_cv_search_curl_easy_init=$ac_res
-fi
-rm -f core conftest.err conftest.$ac_objext \
-    conftest$ac_exeext
-  if ${ac_cv_search_curl_easy_init+:} false; then :
-  break
-fi
-done
-if ${ac_cv_search_curl_easy_init+:} false; then :
-
-else
-  ac_cv_search_curl_easy_init=no
-fi
-rm conftest.$ac_ext
-LIBS=$ac_func_search_save_LIBS
-fi
-{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_search_curl_easy_init" >&5
-$as_echo "$ac_cv_search_curl_easy_init" >&6; }
-ac_res=$ac_cv_search_curl_easy_init
-if test "$ac_res" != no; then :
-  test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
-  use_libcurl=1
-else
-  use_libcurl=0
-fi
-
-
-fi
-	if test "$curl" != ""; then :
-
-		LDFLAGS="$old_LDFLAGS"
-		CPPFLAGS="$old_CPPFLAGS"
-
-fi
-	LIBS="$old_LIBS"
-	if test "$use_libcurl" = "1"; then :
-
-
 ac_cv_default_ca_bundle_auto="not found"
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking CA bundle file" >&5
 $as_echo_n "checking CA bundle file... " >&6; }
@@ -5288,7 +5178,7 @@ cat >>confdefs.h <<_ACEOF
 _ACEOF
 
 
-ac_config_files="$ac_config_files mrsigner.sh run-server:run.in run-client:run.in Makefile Enclave/Makefile"
+ac_config_files="$ac_config_files mrsigner.sh run-server:run.in run-client:run.in Makefile Enclave/Makefile ServerEnclave/Makefile"
 
 
 cat >confcache <<\_ACEOF
@@ -5438,10 +5328,6 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${SGX_HW_SIM_TRUE}" && test -z "${SGX_HW_SIM_FALSE}"; then
   as_fn_error $? "conditional \"SGX_HW_SIM\" was never defined.
-Usually this means the macro was only invoked conditionally." "$LINENO" 5
-fi
-if test -z "${AGENT_CURL_TRUE}" && test -z "${AGENT_CURL_FALSE}"; then
-  as_fn_error $? "conditional \"AGENT_CURL\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 
@@ -6043,6 +5929,7 @@ do
     "run-client") CONFIG_FILES="$CONFIG_FILES run-client:run.in" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "Enclave/Makefile") CONFIG_FILES="$CONFIG_FILES Enclave/Makefile" ;;
+    "ServerEnclave/Makefile") CONFIG_FILES="$CONFIG_FILES ServerEnclave/Makefile" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac
@@ -6736,6 +6623,7 @@ $as_echo X"$file" |
     "run-client":F) chmod -f 755 run-client run-server mrsigner.sh ;;
     "Makefile":F) chmod -f 755 run-client run-server mrsigner.sh ;;
     "Enclave/Makefile":F) chmod -f 755 run-client run-server mrsigner.sh ;;
+    "ServerEnclave/Makefile":F) chmod -f 755 run-client run-server mrsigner.sh ;;
 
   esac
 done # for ac_tag
@@ -6773,3 +6661,4 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unrecognized options: $ac_unrecognized_opts" >&5
 $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
+

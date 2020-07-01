@@ -26,7 +26,7 @@ include $(top_srcdir)/build-aux/sgx_app.am
 ##   SGX_UAE_SERVICE_LIB
 ##   SGX_EDGER8R
 
-SUBDIRS = Enclave
+SUBDIRS = Enclave ServerEnclave
 
 ## Supply additional flags to edger8r here.
 ##
@@ -44,6 +44,17 @@ Enclave.signed.so: Enclave/Enclave.signed.so
 Enclave/Enclave.signed.so:
 	make -C Enclave
 
+## Needed to make our pattern rule work
+
+ServerEnclave.edl: ServerEnclave/ServerEnclave.edl
+	ln -s $?
+
+ServerEnclave.signed.so: ServerEnclave/ServerEnclave.signed.so
+	ln -s $?
+
+ServerEnclave/ServerEnclave.signed.so:
+	make -C ServerEnclave
+
 ## Additional automake variables
 ##
 ## AM_CPPFLAGS +=
@@ -57,6 +68,7 @@ AM_CPPFLAGS += -fno-builtin-memset @OPENSSL_CPPFLAGS@
 ## any edger8r generated files here.
 
 CLEANFILES = Enclave_u.c Enclave_u.h Enclave.edl Enclave.signed.so \
+	ServerEnclave_u.c ServerEnclave_u.h ServerEnclave.edl ServerEnclave.signed.so \
 	policy enclave_sigstruct_raw
 
 
@@ -85,8 +97,8 @@ client_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 ## sp
 
 sp_SOURCES = sp.cpp enclave_verify.c quote_verify.cpp $(common)
-BUILT_SOURCES += policy
-EXTRA_sp_DEPENDENCIES = Enclave.signed.so
+BUILT_SOURCES += policy ServerEnclave_u.c ServerEnclave_u.h
+EXTRA_sp_DEPENDENCIES = ServerEnclave.signed.so
 
 ## mrsigner (helper app)
 
@@ -118,4 +130,5 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 
 mrsigner_LDADD=-lcrypto
 
-sp_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto
+sp_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto \
+					-lsgx_usgxssl # SGX SSL

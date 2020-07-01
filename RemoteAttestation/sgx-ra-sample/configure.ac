@@ -83,6 +83,7 @@ AC_CONFIG_FILES([
 	run-client:run.in
 	Makefile
 	Enclave/Makefile
+	ServerEnclave/Makefile
 ],[chmod -f 755 run-client run-server mrsigner.sh])
 
 AC_OUTPUT
