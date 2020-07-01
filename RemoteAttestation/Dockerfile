@@ -33,7 +33,7 @@ RUN apt-get install -y libsgx-dcap-ql-dev libsgx-uae-service libsgx-dcap-default
 RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
 
 WORKDIR /var/app/
-RUN git clone https://github.com/intel/intel-sgx-ssl.git intel-sgx-ssl
+RUN git clone https://github.com/intel/intel-sgx-ssl.git
 ADD https://www.openssl.org/source/openssl-1.1.1g.tar.gz ./intel-sgx-ssl/openssl_source/openssl-1.1.1g.tar.gz
 
 WORKDIR /var/app/intel-sgx-ssl/Linux

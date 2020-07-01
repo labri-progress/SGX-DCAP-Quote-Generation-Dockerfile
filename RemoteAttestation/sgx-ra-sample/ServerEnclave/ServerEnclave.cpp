@@ -36,6 +36,7 @@
 #include "sgx_utils.h"
 #include "sgx_tcrypto.h"
 #include "QuoteVerification.h"
+#include "crypto.h"
 
 
 //hardcode Intel Root CA cert
