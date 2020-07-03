@@ -31,9 +31,6 @@ extern "C" {
 #endif
 
 /* General */
-void crypto_init();
-void crypto_destroy();
-
 void crypto_perror (const char *prefix);
 
 /*  AES-CMAC */

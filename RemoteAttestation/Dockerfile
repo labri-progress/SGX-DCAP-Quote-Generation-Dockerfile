@@ -60,7 +60,7 @@ COPY ./sgx-ra-sample .
 COPY ./SGXDataCenterAttestationPrimitives/SampleCode/QuoteVerificationSample/prebuilt prebuilt
 
 RUN ./bootstrap
-RUN ./configure
+RUN ./configure --disable-dcap
 RUN make
 RUN chmod 777 .
 

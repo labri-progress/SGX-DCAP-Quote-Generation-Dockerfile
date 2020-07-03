@@ -19,7 +19,7 @@ using namespace std;
 /**
  * @param quote - ECDSA quote buffer
  */
-int ecdsa_quote_verification(uint8_t *quote, uint32_t quote_size)
+int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quote_size)
 {
     int ret = 0;
     time_t current_time = 0;
@@ -39,20 +39,12 @@ int ecdsa_quote_verification(uint8_t *quote, uint32_t quote_size)
 
     int updated = 0;
     sgx_status_t verify_report_ret = SGX_ERROR_UNEXPECTED;
-    sgx_enclave_id_t eid = 0;
     sgx_launch_token_t token = { 0 };
 
     //set nonce
     //
     memcpy(p_qve_report_info.nonce.rand, rand_nonce, sizeof(rand_nonce));
 
-    //get target info of SampleISVEnclave. QvE will target the generated report to this enclave.
-    //
-    sgx_ret = sgx_create_enclave(SAMPLE_ISV_ENCLAVE, SGX_DEBUG_FLAG, &token, &updated, &eid, NULL);
-    if (sgx_ret != SGX_SUCCESS) {
-        printf("\tError: Can't load SampleISVEnclave. 0x%04x\n", sgx_ret);
-        return -1;
-    }
     sgx_status_t get_target_info_ret;
     sgx_ret = ecall_get_target_info(eid, &get_target_info_ret, &p_qve_report_info.app_enclave_target_info);
     if (sgx_ret != SGX_SUCCESS || get_target_info_ret != SGX_SUCCESS) {
@@ -122,7 +114,6 @@ int ecdsa_quote_verification(uint8_t *quote, uint32_t quote_size)
     if (qpl_ret != SGX_QL_SUCCESS) {
         printf("\tError: App: Get QvE Identity and Root CA CRL from PCCS failed: 0x%04x\n", qpl_ret);
         sgx_qv_free_qve_identity(p_qveid, p_qveid_issue_chain, p_root_ca_crl);
-        sgx_destroy_enclave(eid);
         return -1;
     }
     else {
@@ -137,8 +128,6 @@ int ecdsa_quote_verification(uint8_t *quote, uint32_t quote_size)
         sizeof(sgx_report_t),
         p_qve_report_info.nonce.rand,
         sizeof(p_qve_report_info.nonce.rand),
-        quote,
-        quote_size,
         p_qveid,
         qveid_size,
         p_qveid_issue_chain,
@@ -159,60 +148,5 @@ int ecdsa_quote_verification(uint8_t *quote, uint32_t quote_size)
         printf("\tInfo: ecall_verify_report successfully returned.\n");
     }
 
-    time_t tcbLevelDate = ((sgx_ql_qv_supplemental_t*) p_supplemental_data)->tcb_level_date_tag;
-    struct tm minTcbLevelDateInfo;
-
-    // TODO: improve this
-    // Hardcode the minimal date accepted
-    minTcbLevelDateInfo.tm_year = 119; // 2019
-    minTcbLevelDateInfo.tm_mon = 4; // May
-    minTcbLevelDateInfo.tm_mday = 15;
-    minTcbLevelDateInfo.tm_sec = 0;
-    minTcbLevelDateInfo.tm_min = 0;
-    minTcbLevelDateInfo.tm_hour = 0;
-
-    time_t minTcbLevelDate = mktime(&minTcbLevelDateInfo);
-
-    //check verification result
-    //
-    switch (p_quote_verification_result)
-    {
-    case SGX_QL_QV_RESULT_OK:
-    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
-        printf("\tInfo: App: Verification completed successfully.\n");
-
-        ret = 0;
-        break;
-    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
-        // The CPU this was tested on was not up to date... so we adopt a less trict policy
-        printf("\tInfo: App: CPU out of date (%s). Checking if this is acceptable...", ctime(&tcbLevelDate));
-        printf(" (min date is %s)\n", ctime(&minTcbLevelDate));
-
-        if (minTcbLevelDate <= tcbLevelDate) {
-            printf("ok...\n");
-            ret = 0;
-        } else {
-            printf("too old...\n");
-            ret = 1;
-        }
-        break;
-    case SGX_QL_QV_RESULT_OUT_OF_DATE:
-    // case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
-    case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
-    case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
-        printf("\tWarning: App: Verification completed with Non-terminal result: %x\n", p_quote_verification_result);
-        ret = 1;
-        break;
-    case SGX_QL_QV_RESULT_INVALID_SIGNATURE:
-    case SGX_QL_QV_RESULT_REVOKED:
-    case SGX_QL_QV_RESULT_UNSPECIFIED:
-    default:
-        printf("\tError: App: Verification completed with Terminal result: %x\n", p_quote_verification_result);
-        ret = -1;
-        break;
-    }
-
-    sgx_destroy_enclave(eid);
-
-    return ret;
+    return 0;
 }

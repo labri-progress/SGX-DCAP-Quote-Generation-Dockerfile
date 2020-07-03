@@ -58,7 +58,6 @@ typedef struct config_struct {
 	sgx_quote_nonce_t nonce;
 	char *server;
 	char *port;
-	bool no_dcap;
 } config_t;
 
 // Attestation keys (from the Remote attestation sample)
@@ -209,7 +208,6 @@ int main (int argc, char *argv[])
 	static struct option long_opt[] =
 	{
 		{"help",		no_argument,		0, 'h'},
-		{"no-dcap",		no_argument,		0, 'c'},
 		{"debug",		no_argument,		0, 'd'},
 		{"nonce",		required_argument,	0, 'n'},
 		{"nonce-file",	required_argument,	0, 'N'},
@@ -229,7 +227,7 @@ int main (int argc, char *argv[])
 		int opt_index= 0;
 		unsigned char keyin[64];
 
-		c= getopt_long(argc, argv, "N:P:S:dhcln:p:rs:vz", long_opt,
+		c= getopt_long(argc, argv, "N:P:S:dhln:p:rs:vz", long_opt,
 			&opt_index);
 		if ( c == -1 ) break;
 
@@ -246,8 +244,6 @@ int main (int argc, char *argv[])
 			SET_OPT(config.flags, OPT_NONCE);
 
 			break;
-		case 'c':
-			config.no_dcap = true;
 
 			break;
 		case 'P':
@@ -466,11 +462,13 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 
 	/* Selection of the attestation key (ECDSA in our case) */
 	sgx_att_key_id_t selected_key_id = {0};
-	if (!config->no_dcap) {
-    	status = sgx_select_att_key_id(g_ecdsa_p256_att_key_id_list, (uint32_t) sizeof(g_ecdsa_p256_att_key_id_list), &selected_key_id);
-	} else {
-    	status = sgx_select_att_key_id(g_epid_unlinkable_att_key_id_list, (uint32_t) sizeof(g_epid_unlinkable_att_key_id_list), &selected_key_id);
-	}
+	#ifndef NO_DCAP
+	status = sgx_select_att_key_id(g_ecdsa_p256_att_key_id_list, (uint32_t) sizeof(g_ecdsa_p256_att_key_id_list), &selected_key_id);
+	#else
+	fprintf(stderr, "Running in no DCAP mode (EPID attestation)\n");
+	status = sgx_select_att_key_id(g_epid_unlinkable_att_key_id_list, (uint32_t) sizeof(g_epid_unlinkable_att_key_id_list), &selected_key_id);
+	#endif
+
     if(SGX_SUCCESS != status)
     {
 		enclave_ra_close(eid, &sgxrv, ra_ctx);

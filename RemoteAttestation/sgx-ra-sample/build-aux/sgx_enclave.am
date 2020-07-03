@@ -21,6 +21,10 @@ AM_CPPFLAGS=@SGX_ENCLAVE_CPPFLAGS@ -I$(SGXSSL_INCDIR)
 AM_CXXFLAGS=@SGX_ENCLAVE_CXXFLAGS@ @SGX_ENCLAVE_CFLAGS@
 AM_LDFLAGS=@SGX_ENCLAVE_LDFLAGS@ -L$(SGXSSL_LIBDIR)
 
+if !DCAP
+AM_CPPFLAGS += -D NO_DCAP
+endif
+
 ## Trusted libraries. These exist in both hardware and simulation (_sim)
 ## form, so they need to be Makefile variables.
 

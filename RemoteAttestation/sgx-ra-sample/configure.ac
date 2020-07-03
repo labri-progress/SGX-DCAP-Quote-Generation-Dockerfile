@@ -13,6 +13,15 @@ AC_CONFIG_HEADERS([config.h])
 
 SGX_INIT()
 
+AC_ARG_ENABLE([dcap],
+[  --enable-dcap    Use DCAP mode],
+[case "${enableval}" in
+  yes) dcap=true ;;
+  no)  dcap=false ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-dcap]) ;;
+esac],[dcap=true])
+AM_CONDITIONAL([DCAP], [test x$dcap = xtrue])
+
 AC_ARG_WITH([openssldir],
 	[AC_HELP_STRING([--with-openssl=DIR], [Specify location of OpenSSL package])],
 	[openssl=$withval],[])

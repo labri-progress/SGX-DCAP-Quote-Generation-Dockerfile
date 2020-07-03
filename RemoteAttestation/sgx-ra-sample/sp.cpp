@@ -42,6 +42,7 @@ in the License.
 #include "logfile.h"
 #include "enclave_verify.h"
 #include "quote_verify.h"
+#include "ServerEnclave_u.h"
 
 using namespace json;
 using namespace std;
@@ -51,22 +52,14 @@ using namespace std;
 #include <iostream>
 #include <algorithm>
 
+#define SECRET_PROVISIONING_ENCLAVE "ServerEnclave.signed.so"
+
 static const unsigned char def_service_private_key[32] = {
 	0x90, 0xe7, 0x6c, 0xbb, 0x2d, 0x52, 0xa1, 0xce,
 	0x3b, 0x66, 0xde, 0x11, 0x43, 0x9c, 0x87, 0xec,
 	0x1f, 0x86, 0x6a, 0x3b, 0x65, 0xb6, 0xae, 0xea,
 	0xad, 0x57, 0x34, 0x53, 0xd1, 0x03, 0x8c, 0x01
 };
-
-typedef struct ra_session_struct {
-	unsigned char g_a[64];
-	unsigned char g_b[64];
-	unsigned char kdk[16];
-	unsigned char smk[16];
-	unsigned char sk[16];
-	unsigned char mk[16];
-	unsigned char vk[16];
-} ra_session_t;
 
 typedef struct config_struct {
 	sgx_spid_t spid;
@@ -78,28 +71,22 @@ typedef struct config_struct {
 	sgx_prod_id_t req_isv_product_id;
 	sgx_isv_svn_t min_isvsvn;
 	int allow_debug_enclave;
-	bool no_dcap;
 } config_t;
 
 void usage();
 void cleanup_and_exit(int signo);
 
-int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a,
-	config_t *config);
-
 int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1,
-	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config,
-	ra_session_t *session);
+	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config);
 
 int process_msg3 (MsgIO *msg, sgx_ra_msg1_t *msg1,
-	ra_msg4_t *msg4, config_t *config, ra_session_t *session);
-
-int get_proxy(char **server, unsigned int *port, const char *url);
+	ra_msg4_t *msg4, config_t *config);
 
 char debug = 0;
 char verbose = 0;
 /* Need a global for the signal handler */
 MsgIO *msgio = NULL;
+sgx_enclave_id_t *eid;
 
 int main(int argc, char *argv[])
 {
@@ -125,7 +112,6 @@ int main(int argc, char *argv[])
 	static struct option long_opt[] =
 	{
 		{"no-debug-enclave",		no_argument,		0, 'D'},
-		{"no-dcap",					no_argument,		0, 'c'},
 		{"service-key-file",		required_argument,	0, 'K'},
 		{"mrsigner",				required_argument,  0, 'N'},
 		{"production",				no_argument,		0, 'P'},
@@ -170,7 +156,7 @@ int main(int argc, char *argv[])
 		unsigned long val;
 
 		c = getopt_long(argc, argv,
-			"DcK:N:PR:S:V:X:dhk:lp:r:s:vxz",
+			"DK:N:PR:S:V:X:dhk:lp:r:s:vxz",
 			long_opt, &opt_index);
 		if (c == -1) break;
 
@@ -181,10 +167,6 @@ int main(int argc, char *argv[])
 
 		case 'D':
 			config.allow_debug_enclave= 0;
-			break;
-
-		case 'c':
-			config.no_dcap= true;
 			break;
 
 
@@ -355,10 +337,6 @@ int main(int argc, char *argv[])
 
 	if (flag_usage) usage();
 
-	/* Initialize out support libraries */
-
-	crypto_init();
-
 	/* Get our message IO object. */
 
 	if ( flag_stdio ) {
@@ -386,20 +364,28 @@ int main(int argc, char *argv[])
 	if ( sigaction(SIGTERM, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
 	if ( sigaction(SIGQUIT, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
 
+	sgx_status_t sgx_ret = SGX_SUCCESS;
+    int updated = 0;
+    sgx_launch_token_t token = { 0 };
+
+	// Start provisioning enclave
+    eid = (sgx_enclave_id_t*) malloc(sizeof(sgx_enclave_id_t));
+    sgx_ret = sgx_create_enclave(SECRET_PROVISIONING_ENCLAVE, SGX_DEBUG_FLAG, &token, &updated, eid, NULL);
+    if (sgx_ret != SGX_SUCCESS) {
+        printf("\tError: Can't load Secret Provisioning Enclave. 0x%04x\n", sgx_ret);
+        return 1;
+    }
+
  	/* If we're running in server mode, we'll block here.  */
 
 	while ( msgio->server_loop() ) {
-		ra_session_t session;
 		sgx_ra_msg1_t msg1;
 		sgx_ra_msg2_t msg2;
 		ra_msg4_t msg4;
 
-		memset(&session, 0, sizeof(ra_session_t));
-
 		/* Read message 0 and 1, then generate message 2 */
 
-		if ( ! process_msg1(msgio, &msg1, &msg2, &sigrl, &config,
-			&session) ) {
+		if ( ! process_msg1(msgio, &msg1, &msg2, &sigrl, &config) ) {
 
 			eprintf("error processing msg1\n");
 			goto disconnect;
@@ -429,7 +415,7 @@ int main(int argc, char *argv[])
 
 		/* Read message 3, and generate message 4 */
 
-		if ( ! process_msg3(msgio, &msg1, &msg4, &config, &session) ) {
+		if ( ! process_msg3(msgio, &msg1, &msg4, &config) ) {
 			eprintf("error processing msg3\n");
 			goto disconnect;
 		}
@@ -438,22 +424,71 @@ disconnect:
 		msgio->disconnect();
 	}
 
-	crypto_destroy();
-
 	return 0;
 }
 
-int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
-	ra_msg4_t *msg4, config_t *config, ra_session_t *session)
+/*
+ * Read and process message 1.
+ */
+int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
+	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config)
 {
+	sgx_status_t sgx_ret = SGX_SUCCESS;
+    sgx_status_t process_msg1_ret = SGX_SUCCESS;
+	sgx_ra_msg1_t *msg1_pt;
+	unsigned char digest[32], r[32], s[32], gb_ga[128];
+	EVP_PKEY *Gb;
+	int rv;
+
+	/*
+	 * Read our incoming message. We're using base16 encoding/hex strings
+	 * so we should end up with sizeof(msg)*2 bytes.
+	 */
+
+	fprintf(stderr, "Waiting for msg0||msg1\n");
+
+	rv= msgio->read((void **) &msg1_pt, NULL);
+	if ( rv == -1 ) {
+		eprintf("system error reading msg0||msg1\n");
+		return 0;
+	} else if ( rv == 0 ) {
+		eprintf("protocol error reading msg0||msg1\n");
+		return 0;
+	}
+
+	// Pass msg1 back to the pointer in the caller func
+	memcpy(msg1, msg1_pt, sizeof(sgx_ra_msg1_t));
+
+	sgx_ret = ecall_process_msg1(*eid, &process_msg1_ret, *msg1, msg2);
+	if (sgx_ret != SGX_SUCCESS || process_msg1_ret != SGX_SUCCESS) {
+		eprintf("Provisioning Enclave Error: Msg1 processing failed\n");
+		return 0;
+	}
+
+	if ( verbose ) {
+		edividerWithText("Msg1 Details (from Client)");
+		eprintf("msg1.g_a.gx = %s\n",
+			hexstring(&msg1->g_a.gx, sizeof(msg1->g_a.gx)));
+		eprintf("msg1.g_a.gy = %s\n",
+			hexstring(&msg1->g_a.gy, sizeof(msg1->g_a.gy)));
+		eprintf("msg1.gid    = %s\n",
+			hexstring( &msg1->gid, sizeof(msg1->gid)));
+		edivider();
+	}
+
+	return 1;
+}
+
+int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
+	ra_msg4_t *msg4, config_t *config)
+{
+	sgx_status_t sgx_ret = SGX_SUCCESS;
+    sgx_status_t process_msg3_ret = SGX_SUCCESS;
 	sgx_ra_msg3_t *msg3;
-	size_t blen= 0;
 	size_t sz;
 	int rv;
 	uint32_t quote_sz;
-	char *buffer= NULL;
 	sgx_mac_t vrfymac;
-	sgx_quote_t *q;
 
 	/*
 	 * Read our incoming message. We're using base16 encoding/hex strings
@@ -485,154 +520,21 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		eprintf("+++ read %lu bytes\n", sz);
 	}
 
-	/*
-	 * The quote size will be the total msg3 size - sizeof(sgx_ra_msg3_t)
-	 * since msg3.quote is a flexible array member.
-	 *
-	 * Total message size is sz/2 since the income message is in base16.
-	 */
-	quote_sz = (uint32_t)((sz / 2) - sizeof(sgx_ra_msg3_t));
-	if ( debug ) {
-		eprintf("+++ quote_sz= %lu bytes\n", quote_sz);
-	}
+	uint32_t msg3_size = sz/2;
+	uint32_t quote_size = (uint32_t)(msg3_size - sizeof(sgx_ra_msg3_t));
 
-	/* Make sure Ga matches msg1 */
-
-	if ( debug ) {
-		eprintf("+++ Verifying msg3.g_a matches msg1.g_a\n");
-		eprintf("msg1.g_a.gx = %s\n",
-			hexstring(&msg1->g_a.gx, sizeof(msg1->g_a.gx)));
-		eprintf("msg1.g_a.gy = %s\n",
-			hexstring(&msg1->g_a.gy, sizeof(msg1->g_a.gy)));
-		eprintf("msg3.g_a.gx = %s\n",
-			hexstring(&msg3->g_a.gx, sizeof(msg3->g_a.gx)));
-		eprintf("msg3.g_a.gy = %s\n",
-			hexstring(&msg3->g_a.gy, sizeof(msg3->g_a.gy)));
-	}
-	if ( CRYPTO_memcmp(&msg3->g_a, &msg1->g_a, sizeof(sgx_ec256_public_t)) ) {
-		eprintf("msg1.g_a and mgs3.g_a keys don't match\n");
-		free(msg3);
+	sgx_ret = ecall_process_msg3(*eid, &process_msg3_ret, msg3, msg3_size);
+	if (sgx_ret != SGX_SUCCESS || process_msg3_ret != SGX_SUCCESS) {
+		eprintf("Provisioning enclave could not verify message 3: %08x\n", process_msg3_ret);
 		return 0;
 	}
-
-	/* Validate the MAC of M */
-
-	cmac128(session->smk, (unsigned char *) &msg3->g_a,
-		sizeof(sgx_ra_msg3_t)-sizeof(sgx_mac_t)+quote_sz,
-		(unsigned char *) vrfymac);
-
-	if ( debug ) {
-		eprintf("+++ Validating MACsmk(M)\n");
-		eprintf("msg3.mac   = %s\n", hexstring(msg3->mac, sizeof(sgx_mac_t)));
-		eprintf("calculated = %s\n", hexstring(vrfymac, sizeof(sgx_mac_t)));
-	}
-
-	if ( CRYPTO_memcmp(msg3->mac, vrfymac, sizeof(sgx_mac_t)) ) {
-		eprintf("Failed to verify msg3 MAC\n");
-		free(msg3);
-		return 0;
-	}
-
-	q= (sgx_quote_t *) msg3->quote;
-
-	if ( verbose ) {
-
-		edividerWithText("Msg3 Details (from Client)");
-		eprintf("msg3.mac                 = %s\n",
-			hexstring(&msg3->mac, sizeof(msg3->mac)));
-		eprintf("msg3.g_a.gx              = %s\n",
-			hexstring(msg3->g_a.gx, sizeof(msg3->g_a.gx)));
-		eprintf("msg3.g_a.gy              = %s\n",
-			hexstring(&msg3->g_a.gy, sizeof(msg3->g_a.gy)));
-		eprintf("msg3.ps_sec_prop         = %s\n",
-			hexstring(&msg3->ps_sec_prop, sizeof(msg3->ps_sec_prop)));
-		eprintf("msg3.quote.version       = %s\n",
-			hexstring(&q->version, sizeof(uint16_t)));
-		eprintf("msg3.quote.sign_type     = %s\n",
-			hexstring(&q->sign_type, sizeof(uint16_t)));
-		eprintf("msg3.quote.epid_group_id = %s\n",
-			hexstring(&q->epid_group_id, sizeof(sgx_epid_group_id_t)));
-		eprintf("msg3.quote.qe_svn        = %s\n",
-			hexstring(&q->qe_svn, sizeof(sgx_isv_svn_t)));
-		eprintf("msg3.quote.pce_svn       = %s\n",
-			hexstring(&q->pce_svn, sizeof(sgx_isv_svn_t)));
-		eprintf("msg3.quote.xeid          = %s\n",
-			hexstring(&q->xeid, sizeof(uint32_t)));
-		eprintf("msg3.quote.basename      = %s\n",
-			hexstring(&q->basename, sizeof(sgx_basename_t)));
-		eprintf("msg3.quote.report_body   = %s\n",
-			hexstring(&q->report_body, sizeof(sgx_report_body_t)));
-		eprintf("msg3.quote.signature_len = %s\n",
-			hexstring(&q->signature_len, sizeof(uint32_t)));
-		eprintf("msg3.quote.signature     = %s\n",
-			hexstring(&q->signature, q->signature_len));
-
-		eprintf("\n");
-		edivider();
-	}
-
 
 	msg4->status = Trusted;
 
-	unsigned char vfy_rdata[64];
-	unsigned char msg_rdata[144]; /* for Ga || Gb || VK */
-
-	sgx_report_body_t *r= (sgx_report_body_t *) &q->report_body;
-
-	memset(vfy_rdata, 0, 64);
-
-	/*
-	 * Verify that the first 64 bytes of the report data (inside
-	 * the quote) are SHA256(Ga||Gb||VK) || 0x00[32]
-	 *
-	 * VK = CMACkdk( 0x01 || "VK" || 0x00 || 0x80 || 0x00 )
-	 *
-	 * where || denotes concatenation.
-	 */
-
-	/* Derive VK */
-
-	cmac128(session->kdk, (unsigned char *)("\x01VK\x00\x80\x00"),
-			6, session->vk);
-
-	/* Build our plaintext */
-
-	memcpy(msg_rdata, session->g_a, 64);
-	memcpy(&msg_rdata[64], session->g_b, 64);
-	memcpy(&msg_rdata[128], session->vk, 16);
-
-	/* SHA-256 hash */
-
-	sha256_digest(msg_rdata, 144, vfy_rdata);
-
-	if ( verbose ) {
-		edividerWithText("Enclave Report Verification");
-		if ( debug ) {
-			eprintf("VK                 = %s\n",
-				hexstring(session->vk, 16));
-		}
-		eprintf("SHA256(Ga||Gb||VK) = %s\n",
-			hexstring(vfy_rdata, 32));
-		eprintf("report_data[64]    = %s\n",
-			hexstring(&r->report_data, 64));
-	}
-
-	if ( CRYPTO_memcmp((void *) vfy_rdata, (void *) &r->report_data,
-		64) ) {
-
-		eprintf("Report verification failed.\n");
-		free(msg3);
-		return 0;
-	}
-
-	if (ecdsa_quote_verification((uint8_t*) &msg3->quote, quote_sz) != 0) {
+	if (ecdsa_quote_verification(*eid, (uint8_t*) &msg3->quote, quote_size) != 0) {
 		eprintf("Invalid quote (Verification failed).\n");
 
-		if (!config->no_dcap) {
-			msg4->status= NotTrusted;
-		} else {
-			eprintf("Ignoring this error (no dcap mode: attestation disabled).\n");
-		}
+		msg4->status = NotTrusted;
 	}
 
 	/*
@@ -650,6 +552,8 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	 * is compiled.
 	 */
 
+ 	sgx_quote_t* q = (sgx_quote_t *) msg3->quote;
+	sgx_report_body_t *r= (sgx_report_body_t *) &q->report_body;
 	if ( ! verify_enclave_identity(config->req_mrsigner,
 		config->req_isv_product_id, config->min_isvsvn,
 		config->allow_debug_enclave, r) ) {
@@ -702,315 +606,29 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	 * secret between us and the client.
 	 */
 
-	if ( msg4->status == Trusted ) {
-		unsigned char hashmk[32], hashsk[32];
-
-		if ( debug ) eprintf("+++ Deriving the MK and SK\n");
-		cmac128(session->kdk, (unsigned char *)("\x01MK\x00\x80\x00"),
-			6, session->mk);
-		cmac128(session->kdk, (unsigned char *)("\x01SK\x00\x80\x00"),
-			6, session->sk);
-
-		sha256_digest(session->mk, 16, hashmk);
-		sha256_digest(session->sk, 16, hashsk);
-
-		if ( verbose ) {
-			if ( debug ) {
-				eprintf("MK         = %s\n", hexstring(session->mk, 16));
-				eprintf("SK         = %s\n", hexstring(session->sk, 16));
-			}
-			eprintf("SHA256(MK) = %s\n", hexstring(hashmk, 32));
-			eprintf("SHA256(SK) = %s\n", hexstring(hashsk, 32));
-		}
-	}
+	// if ( msg4->status == Trusted ) {
+	// 	unsigned char hashmk[32], hashsk[32];
+	//
+	// 	if ( debug ) eprintf("+++ Deriving the MK and SK\n");
+	// 	cmac128(session->kdk, (unsigned char *)("\x01MK\x00\x80\x00"),
+	// 		6, session->mk);
+	// 	cmac128(session->kdk, (unsigned char *)("\x01SK\x00\x80\x00"),
+	// 		6, session->sk);
+	//
+	// 	sha256_digest(session->mk, 16, hashmk);
+	// 	sha256_digest(session->sk, 16, hashsk);
+	//
+	// 	if ( verbose ) {
+	// 		if ( debug ) {
+	// 			eprintf("MK         = %s\n", hexstring(session->mk, 16));
+	// 			eprintf("SK         = %s\n", hexstring(session->sk, 16));
+	// 		}
+	// 		eprintf("SHA256(MK) = %s\n", hexstring(hashmk, 32));
+	// 		eprintf("SHA256(SK) = %s\n", hexstring(hashsk, 32));
+	// 	}
+	// }
 
 	free(msg3);
-
-	return 1;
-}
-
-/*
- * Read and process message 1.
- */
-
-int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
-	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config, ra_session_t *session)
-{
-	sgx_ra_msg1_t *msg1_pt;
-	size_t blen= 0;
-	char *buffer= NULL;
-	unsigned char digest[32], r[32], s[32], gb_ga[128];
-	EVP_PKEY *Gb;
-	int rv;
-
-	memset(msg2, 0, sizeof(sgx_ra_msg2_t));
-
-	/*
-	 * Read our incoming message. We're using base16 encoding/hex strings
-	 * so we should end up with sizeof(msg)*2 bytes.
-	 */
-
-	fprintf(stderr, "Waiting for msg0||msg1\n");
-
-	rv= msgio->read((void **) &msg1_pt, NULL);
-	if ( rv == -1 ) {
-		eprintf("system error reading msg0||msg1\n");
-		return 0;
-	} else if ( rv == 0 ) {
-		eprintf("protocol error reading msg0||msg1\n");
-		return 0;
-	}
-
-	// Pass msg1 back to the pointer in the caller func
-	memcpy(msg1, msg1_pt, sizeof(sgx_ra_msg1_t));
-
-	if ( verbose ) {
-		edividerWithText("Msg1 Details (from Client)");
-		eprintf("msg1.g_a.gx = %s\n",
-			hexstring(&msg1->g_a.gx, sizeof(msg1->g_a.gx)));
-		eprintf("msg1.g_a.gy = %s\n",
-			hexstring(&msg1->g_a.gy, sizeof(msg1->g_a.gy)));
-		eprintf("msg1.gid    = %s\n",
-			hexstring( &msg1->gid, sizeof(msg1->gid)));
-		edivider();
-	}
-
-	/* Generate our session key */
-
-	if ( debug ) eprintf("+++ generating session key Gb\n");
-
-	Gb= key_generate();
-	if ( Gb == NULL ) {
-		eprintf("Could not create a session key\n");
-		free(msg1_pt);
-		return 0;
-	}
-
-	/*
-	 * Derive the KDK from the key (Ga) in msg1 and our session key.
-	 * An application would normally protect the KDK in memory to
-	 * prevent trivial inspection.
-	 */
-
-	if ( debug ) eprintf("+++ deriving KDK\n");
-
-	if ( ! derive_kdk(Gb, session->kdk, msg1->g_a, config) ) {
-		eprintf("Could not derive the KDK\n");
-		free(msg1_pt);
-		return 0;
-	}
-
-	if ( debug ) eprintf("+++ KDK = %s\n", hexstring(session->kdk, 16));
-
-	/*
- 	 * Derive the SMK from the KDK
-	 * SMK = AES_CMAC(KDK, 0x01 || "SMK" || 0x00 || 0x80 || 0x00)
-	 */
-
-	if ( debug ) eprintf("+++ deriving SMK\n");
-
-	cmac128(session->kdk, (unsigned char *)("\x01SMK\x00\x80\x00"), 7,
-		session->smk);
-
-	if ( debug ) eprintf("+++ SMK = %s\n", hexstring(session->smk, 16));
-
-	/*
-	 * Build message 2
-	 *
-	 * A || CMACsmk(A) || SigRL
-	 * (148 + 16 + SigRL_length bytes = 164 + SigRL_length bytes)
-	 *
-	 * where:
-	 *
-	 * A      = Gb || SPID || TYPE || KDF-ID || SigSP(Gb, Ga)
-	 *          (64 + 16 + 2 + 2 + 64 = 148 bytes)
-	 * Ga     = Client enclave's session key
-	 *          (32 bytes)
-	 * Gb     = Service Provider's session key
-	 *          (32 bytes)
-	 * SPID   = The Service Provider ID, issued by Intel to the vendor
-	 *          (16 bytes)
-	 * TYPE   = Quote type (0= linkable, 1= linkable)
-	 *          (2 bytes)
-	 * KDF-ID = (0x0001= CMAC entropy extraction and key derivation)
-	 *          (2 bytes)
-	 * SigSP  = ECDSA signature of (Gb.x || Gb.y || Ga.x || Ga.y) as r || s
-	 *          (signed with the Service Provider's private key)
-	 *          (64 bytes)
-	 *
-	 * CMACsmk= AES-128-CMAC(A)
-	 *          (16 bytes)
-	 *
-	 * || denotes concatenation
-	 *
-	 * Note that all key components (Ga.x, etc.) are in little endian
-	 * format, meaning the byte streams need to be reversed.
-	 *
-	 * For SigRL, send:
-	 *
-	 *  SigRL_size || SigRL_contents
-	 *
-	 * where sigRL_size is a 32-bit uint (4 bytes). This matches the
-	 * structure definition in sgx_ra_msg2_t
-	 */
-
-	key_to_sgx_ec256(&msg2->g_b, Gb);
-	memcpy(&msg2->spid, &config->spid, sizeof(sgx_spid_t));
-	msg2->quote_type= config->quote_type;
-	msg2->kdf_id= 1;
-
-	/* Get the sigrl */
-
-	memcpy(gb_ga, &msg2->g_b, 64);
-	memcpy(session->g_b, &msg2->g_b, 64);
-
-	memcpy(&gb_ga[64], &msg1->g_a, 64);
-	memcpy(session->g_a, &msg1->g_a, 64);
-
-	if ( debug ) eprintf("+++ GbGa = %s\n", hexstring(gb_ga, 128));
-
-	ecdsa_sign(gb_ga, 128, config->service_private_key, r, s, digest);
-	reverse_bytes(&msg2->sign_gb_ga.x, r, 32);
-	reverse_bytes(&msg2->sign_gb_ga.y, s, 32);
-
-	if ( debug ) {
-		eprintf("+++ sha256(GbGa) = %s\n", hexstring(digest, 32));
-		eprintf("+++ r = %s\n", hexstring(r, 32));
-		eprintf("+++ s = %s\n", hexstring(s, 32));
-	}
-
-	/* The "A" component is conveniently at the start of sgx_ra_msg2_t */
-
-	cmac128(session->smk, (unsigned char *) msg2, 148,
-		(unsigned char *) &msg2->mac);
-
-	if ( verbose ) {
-		edividerWithText("Msg2 Details");
-		eprintf("msg2.g_b.gx      = %s\n",
-			hexstring(&msg2->g_b.gx, sizeof(msg2->g_b.gx)));
-		eprintf("msg2.g_b.gy      = %s\n",
-			hexstring(&msg2->g_b.gy, sizeof(msg2->g_b.gy)));
-		eprintf("msg2.spid        = %s\n",
-			hexstring(&msg2->spid, sizeof(msg2->spid)));
-		eprintf("msg2.quote_type  = %s\n",
-			hexstring(&msg2->quote_type, sizeof(msg2->quote_type)));
-		eprintf("msg2.kdf_id      = %s\n",
-			hexstring(&msg2->kdf_id, sizeof(msg2->kdf_id)));
-		eprintf("msg2.sign_ga_gb  = %s\n",
-			hexstring(&msg2->sign_gb_ga, sizeof(msg2->sign_gb_ga)));
-		eprintf("msg2.mac         = %s\n",
-			hexstring(&msg2->mac, sizeof(msg2->mac)));
-		eprintf("msg2.sig_rl_size = %s\n",
-			hexstring(&msg2->sig_rl_size, sizeof(msg2->sig_rl_size)));
-		edivider();
-	}
-
-	free(msg1_pt);
-
-	return 1;
-}
-
-int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a,
-	config_t *config)
-{
-	unsigned char *Gab_x;
-	size_t slen;
-	EVP_PKEY *Ga;
-	unsigned char cmackey[16];
-
-	memset(cmackey, 0, 16);
-
-	/*
-	 * Compute the shared secret using the peer's public key and a generated
-	 * public/private key.
-	 */
-
-	Ga= key_from_sgx_ec256(&g_a);
-	if ( Ga == NULL ) {
-		crypto_perror("key_from_sgx_ec256");
-		return 0;
-	}
-
-	/* The shared secret in a DH exchange is the x-coordinate of Gab */
-	Gab_x= key_shared_secret(Gb, Ga, &slen);
-	if ( Gab_x == NULL ) {
-		crypto_perror("key_shared_secret");
-		return 0;
-	}
-
-	/* We need it in little endian order, so reverse the bytes. */
-	/* We'll do this in-place. */
-
-	if ( debug ) eprintf("+++ shared secret= %s\n", hexstring(Gab_x, slen));
-
-	reverse_bytes(Gab_x, Gab_x, slen);
-
-	if ( debug ) eprintf("+++ reversed     = %s\n", hexstring(Gab_x, slen));
-
-	/* Now hash that to get our KDK (Key Definition Key) */
-
-	/*
-	 * KDK = AES_CMAC(0x00000000000000000000000000000000, secret)
-	 */
-
-	cmac128(cmackey, Gab_x, slen, kdk);
-
-	return 1;
-}
-
-// Break a URL into server and port. NOTE: This is a simplistic algorithm.
-
-int get_proxy(char **server, unsigned int *port, const char *url)
-{
-	size_t idx1, idx2;
-	string lcurl, proto, srv, sport;
-
-	if (url == NULL) return 0;
-
-	lcurl = string(url);
-	// Make lower case for sanity
-	transform(lcurl.begin(), lcurl.end(), lcurl.begin(), ::tolower);
-
-	idx1= lcurl.find_first_of(":");
-	proto = lcurl.substr(0, idx1);
-	if (proto == "https") *port = 443;
-	else if (proto == "http") *port = 80;
-	else return 0;
-
-	idx1 = lcurl.find_first_not_of("/", idx1 + 1);
-	if (idx1 == string::npos) return 0;
-
-	idx2 = lcurl.find_first_of(":", idx1);
-	if (idx2 == string::npos) {
-		idx2 = lcurl.find_first_of("/", idx1);
-		if (idx2 == string::npos) srv = lcurl.substr(idx1);
-		else srv = lcurl.substr(idx1, idx2 - idx1);
-	}
-	else {
-		srv= lcurl.substr(idx1, idx2 - idx1);
-		idx1 = idx2+1;
-		idx2 = lcurl.find_first_of("/", idx1);
-
-		if (idx2 == string::npos) sport = lcurl.substr(idx1);
-		else sport = lcurl.substr(idx1, idx2 - idx1);
-
-		try {
-			*port = (unsigned int) ::stoul(sport);
-		}
-		catch (...) {
-			return 0;
-		}
-	}
-
-	try {
-		*server = new char[srv.length()+1];
-	}
-	catch (...) {
-		return 0;
-	}
-
-	memcpy(*server, srv.c_str(), srv.length());
-	(*server)[srv.length()] = 0;
 
 	return 1;
 }
@@ -1029,6 +647,11 @@ void cleanup_and_exit(int signo)
 	 */
 
 	delete msgio;
+
+	// Destroy provisioning enclave
+	if (NULL != eid) {
+    	sgx_destroy_enclave(*eid);
+	}
 
 	exit(1);
 }

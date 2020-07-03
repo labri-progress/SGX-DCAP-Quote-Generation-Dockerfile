@@ -33,6 +33,7 @@
 
 enclave {
     include "sgx_report.h"
+    include "sgx_key_exchange.h"
 
   	from "sgx_tsgxssl.edl" import *;
     from "sgx_tstdc.edl" import *;
@@ -44,13 +45,21 @@ enclave {
 
 
     trusted {
+        public sgx_status_t ecall_process_msg1(
+                                sgx_ra_msg1_t msg1,
+                                [out] sgx_ra_msg2_t *msg2
+        );
+
+        public sgx_status_t ecall_process_msg3(
+                                [in, size=msg3_size] sgx_ra_msg3_t* msg3,
+                                uint32_t msg3_size
+        );
+
         public sgx_status_t ecall_verify_report(
                                 [in, size = report_size] uint8_t* p_report,
                                 uint64_t report_size,
                                 [in, size = rand_size] uint8_t *p_rand,
                                 uint16_t rand_size,
-                                [in, size = quote_size]uint8_t* p_quote,
-                                uint64_t quote_size,
                                 [in, size = qveid_size]uint8_t* p_qveid,
                                 uint32_t qveid_size,
                                 [in, size = qveid_issue_chain_size]uint8_t* p_qveid_issue_chain,

@@ -72,10 +72,6 @@ fi
 
 # Debugging options
 
-if [ "$DCAP" != "" -a "0$DCAP" -eq 0 ]; then
-	flag_dcap=-c
-fi
-
 if [ "$VERBOSE" != "" -a "0$VERBOSE" -ne 0 ]; then
 	flag_verbose=-v
 fi
