@@ -27,18 +27,13 @@ enclave {
 	trusted {
 		include "config.h"
 
-		public sgx_status_t get_report([out] sgx_report_t *report,
-			[in] sgx_target_info_t *target_info);
-
 		public sgx_status_t enclave_ra_init(sgx_ec256_public_t key, int b_pse,
 			[out] sgx_ra_context_t *ctx, [out] sgx_status_t *pse_status);
 
 		public sgx_status_t enclave_ra_init_def(int b_pse,
 			[out] sgx_ra_context_t *ctx, [out] sgx_status_t *pse_status);
 
-		public sgx_status_t enclave_ra_get_key_hash(
-			[out] sgx_status_t *get_keys_status, sgx_ra_context_t ctx,
-			sgx_ra_key_type_t type, [out] sgx_sha256_hash_t *hash);
+		public sgx_status_t enclave_put_secret([in, size=secret_size] unsigned char* secret, size_t secret_size, [in] sgx_aes_gcm_128bit_tag_t* mac, sgx_ra_context_t context);
 
 		public sgx_status_t enclave_ra_close(sgx_ra_context_t ctx);
 

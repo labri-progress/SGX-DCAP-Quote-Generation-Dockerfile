@@ -34,6 +34,7 @@
 enclave {
     include "sgx_report.h"
     include "sgx_key_exchange.h"
+    include "sgx_tcrypto.h"
 
   	from "sgx_tsgxssl.edl" import *;
     from "sgx_tstdc.edl" import *;
@@ -73,5 +74,9 @@ enclave {
                                 uint32_t supplemental_data_size);
 
         public sgx_status_t ecall_get_target_info([out] sgx_target_info_t* target_info);
+
+        public size_t ecall_get_secret_size();
+
+        public sgx_status_t ecall_get_secret([out, size=size] unsigned char* secret_dst, size_t size, [out] sgx_aes_gcm_128bit_tag_t* mac);
     };
 };

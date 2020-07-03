@@ -38,6 +38,7 @@
 #include "sgx_tcrypto.h"
 #include "QuoteVerification.h"
 #include "crypto.h"
+#include "rsa.h"
 #include "byteorder.h"
 #include "time.h"
 
@@ -53,7 +54,7 @@ static const unsigned char def_service_private_key[32] = {
 
 typedef struct ra_session_struct {
     uint8_t step;
-	unsigned char g_a[64];
+    unsigned char g_a[64];
 	unsigned char g_b[64];
 	unsigned char kdk[16];
 	unsigned char smk[16];
@@ -65,6 +66,12 @@ typedef struct ra_session_struct {
 } ra_session_t;
 
 ra_session_t session = {0};
+
+RSA* key_P1;
+RSA* key_P2;
+
+char* symmetry_key_P1;
+char* symmetry_key_P2;
 
 int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a)
 {
@@ -355,7 +362,6 @@ sgx_status_t ecall_get_target_info(sgx_target_info_t* target_info) {
     return sgx_self_target(target_info);
 }
 
-
 sgx_status_t ecall_verify_report(uint8_t* p_report,
                                 uint64_t report_size,
                                 uint8_t* p_rand,
@@ -534,6 +540,38 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
 	} else {
 		session.step = 0;
 	}
+
+	return ret;
+}
+
+unsigned char secret[] = "This is a different secret";
+
+size_t ecall_get_secret_size() {
+	return sizeof(secret);
+}
+
+sgx_status_t ecall_get_secret(unsigned char* secret_dst, size_t size, sgx_aes_gcm_128bit_tag_t* mac) {
+    if (session.step != 3) {
+        return SGX_ERROR_INVALID_STATE;
+    }
+
+	if (size < ecall_get_secret_size()) {
+		return SGX_ERROR_UNEXPECTED;
+	}
+
+    uint8_t aes_gcm_iv[12] = {0};
+    sgx_status_t ret = sgx_rijndael128GCM_encrypt(&session.sk,
+                                     secret,
+                                     ecall_get_secret_size(),
+                                     secret_dst,
+                                     &aes_gcm_iv[0],
+                                     12,
+                                     NULL,
+                                     0,
+                                     mac);
+ 								 if (ret != SGX_SUCCESS) return ret;
+
+	session.step = 0;
 
 	return ret;
 }

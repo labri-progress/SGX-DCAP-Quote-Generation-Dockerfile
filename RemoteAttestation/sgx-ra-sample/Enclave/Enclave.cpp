@@ -66,32 +66,10 @@ static const sgx_ec256_public_t def_service_public_key = {
  *----------------------------------------------------------------------
  */
 
-/*
- * This doesn't really need to be a C++ source file, but a bug in
- * 2.1.3 and earlier implementations of the SGX SDK left a stray
- * C++ symbol in libsgx_tkey_exchange.so so it won't link without
- * a C++ compiler. Just making the source C++ was the easiest way
- * to deal with that.
- */
-
-sgx_status_t get_report(sgx_report_t *report, sgx_target_info_t *target_info)
-{
-#ifdef SGX_HW_SIM
-	return sgx_create_report(NULL, NULL, report);
-#else
-	return sgx_create_report(target_info, NULL, report);
-#endif
-}
-
 sgx_status_t enclave_ra_init(sgx_ec256_public_t key, int b_pse,
 	sgx_ra_context_t *ctx, sgx_status_t *pse_status)
 {
 	sgx_status_t ra_status;
-
-	/*
-	 * If we want platform services, we must create a PSE session
-	 * before calling sgx_ra_init()
-	 */
 
 	ra_status= sgx_ra_init(&key, 0, ctx);
 
@@ -104,37 +82,29 @@ sgx_status_t enclave_ra_init_def(int b_pse, sgx_ra_context_t *ctx,
 	return enclave_ra_init(def_service_public_key, b_pse, ctx, pse_status);
 }
 
-/*
- * Return a SHA256 hash of the requested key. KEYS SHOULD NEVER BE
- * SENT OUTSIDE THE ENCLAVE IN PLAIN TEXT. This function let's us
- * get proof of possession of the key without exposing it to untrusted
- * memory.
- */
-
-sgx_status_t enclave_ra_get_key_hash(sgx_status_t *get_keys_ret,
-	sgx_ra_context_t ctx, sgx_ra_key_type_t type, sgx_sha256_hash_t *hash)
+sgx_status_t enclave_put_secret(unsigned char* secret, size_t secret_size, sgx_aes_gcm_128bit_tag_t* mac, sgx_ra_context_t context)
 {
-	sgx_status_t sha_ret;
 	sgx_ra_key_128_t k;
 
-	// First get the requested key which is one of:
-	//  * SGX_RA_KEY_MK
-	//  * SGX_RA_KEY_SK
-	// per sgx_ra_get_keys().
+	sgx_status_t get_keys_ret = sgx_ra_get_keys(context, SGX_RA_KEY_SK, &k);
+	if ( get_keys_ret != SGX_SUCCESS ) return get_keys_ret;
 
-	*get_keys_ret= sgx_ra_get_keys(ctx, type, &k);
-	if ( *get_keys_ret != SGX_SUCCESS ) return *get_keys_ret;
-
-	/* Now generate a SHA hash */
-
-	sha_ret= sgx_sha256_msg((const uint8_t *) &k, sizeof(k),
-		(sgx_sha256_hash_t *) hash); // Sigh.
+    unsigned char* cleartext = (unsigned char*) malloc(secret_size);
+    uint8_t aes_gcm_iv[12] = {0};
+    sgx_status_t ret = sgx_rijndael128GCM_decrypt(&k,
+                                     secret,
+                                     secret_size,
+                                     cleartext,
+                                     &aes_gcm_iv[0],
+                                     12,
+                                     NULL,
+                                     0,
+                                     (const sgx_aes_gcm_128bit_tag_t*) mac);
 
 	/* Let's be thorough */
-
 	memset(k, 0, sizeof(k));
 
-	return sha_ret;
+	return ret;
 }
 
 sgx_status_t enclave_ra_close(sgx_ra_context_t ctx)

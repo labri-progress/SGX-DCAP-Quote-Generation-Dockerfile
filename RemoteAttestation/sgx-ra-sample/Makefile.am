@@ -131,5 +131,5 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 mrsigner_LDADD=-lcrypto
 
 nodist_sp_SOURCES = ServerEnclave_u.c ServerEnclave_u.h
-sp_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto \
+sp_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
 					-lsgx_usgxssl # SGX SSL

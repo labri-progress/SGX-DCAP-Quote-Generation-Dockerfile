@@ -76,11 +76,9 @@ typedef struct config_struct {
 void usage();
 void cleanup_and_exit(int signo);
 
-int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1,
-	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config);
+int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2, char **sigrl, config_t *config);
 
-int process_msg3 (MsgIO *msg, sgx_ra_msg1_t *msg1,
-	ra_msg4_t *msg4, config_t *config);
+int process_msg3 (MsgIO *msg, sgx_ra_msg1_t *msg1, config_t *config);
 
 char debug = 0;
 char verbose = 0;
@@ -381,7 +379,6 @@ int main(int argc, char *argv[])
 	while ( msgio->server_loop() ) {
 		sgx_ra_msg1_t msg1;
 		sgx_ra_msg2_t msg2;
-		ra_msg4_t msg4;
 
 		/* Read message 0 and 1, then generate message 2 */
 
@@ -415,7 +412,7 @@ int main(int argc, char *argv[])
 
 		/* Read message 3, and generate message 4 */
 
-		if ( ! process_msg3(msgio, &msg1, &msg4, &config) ) {
+		if ( ! process_msg3(msgio, &msg1, &config) ) {
 			eprintf("error processing msg3\n");
 			goto disconnect;
 		}
@@ -479,8 +476,7 @@ int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	return 1;
 }
 
-int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
-	ra_msg4_t *msg4, config_t *config)
+int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1, config_t *config)
 {
 	sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_status_t process_msg3_ret = SGX_SUCCESS;
@@ -489,6 +485,9 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	int rv;
 	uint32_t quote_sz;
 	sgx_mac_t vrfymac;
+   	sgx_quote_t* q;
+   	sgx_report_body_t *r;
+	sgx_status_t get_secret_ret = SGX_SUCCESS;
 
 	/*
 	 * Read our incoming message. We're using base16 encoding/hex strings
@@ -529,12 +528,24 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 		return 0;
 	}
 
-	msg4->status = Trusted;
+	size_t secret_size;
 
+	uint8_t buffer[100];
+
+	sgx_ret = ecall_get_secret_size(*eid, &secret_size);
+	if (sgx_ret != SGX_SUCCESS) {
+		eprintf("Provisioning enclave did not return secret size: %08x\n", sgx_ret);
+		return 0;
+	}
+
+	ra_msg4_t *msg4 = (ra_msg4_t*) malloc(sizeof(ra_msg4_t) + secret_size);
+
+	msg4->status = Trusted;
 	if (ecdsa_quote_verification(*eid, (uint8_t*) &msg3->quote, quote_size) != 0) {
 		eprintf("Invalid quote (Verification failed).\n");
 
 		msg4->status = NotTrusted;
+		goto sendmsg4;
 	}
 
 	/*
@@ -552,14 +563,23 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	 * is compiled.
 	 */
 
- 	sgx_quote_t* q = (sgx_quote_t *) msg3->quote;
-	sgx_report_body_t *r= (sgx_report_body_t *) &q->report_body;
+  	q= (sgx_quote_t *) msg3->quote;
+ 	r= (sgx_report_body_t *) &q->report_body;
 	if ( ! verify_enclave_identity(config->req_mrsigner,
 		config->req_isv_product_id, config->min_isvsvn,
 		config->allow_debug_enclave, r) ) {
 
 		eprintf("Invalid enclave.\n");
 		msg4->status= NotTrusted;
+		goto sendmsg4;
+	}
+
+	msg4->secret_size = secret_size;
+
+	sgx_ret = ecall_get_secret(*eid, &get_secret_ret, msg4->secret, msg4->secret_size, &msg4->mac);
+	if (sgx_ret != SGX_SUCCESS || get_secret_ret != SGX_SUCCESS) {
+		eprintf("Provisioning enclave did not return secret: %08x\n", get_secret_ret);
+		return 0;
 	}
 
 	if ( verbose ) {
@@ -587,48 +607,22 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	}
 
 
+sendmsg4:
 	edividerWithText("Copy/Paste Msg4 Below to Client");
 
 	/* Serialize the members of the Msg4 structure independently */
 	/* vs. the entire structure as one send_msg() */
 
-	msgio->send_partial(&msg4->status, sizeof(msg4->status));
-	msgio->send(&msg4->platformInfoBlob, sizeof(msg4->platformInfoBlob));
+	msgio->send_partial((void *) msg4, sizeof(ra_msg4_t));
+	fsend_msg_partial(fplog, (void *) msg4, sizeof(ra_msg4_t));
 
-	fsend_msg_partial(fplog, &msg4->status, sizeof(msg4->status));
-	fsend_msg(fplog, &msg4->platformInfoBlob,
-		sizeof(msg4->platformInfoBlob));
+	msgio->send((void*) msg4->secret, msg4->secret_size);
+	fsend_msg(fplog, (void*) msg4->secret, msg4->secret_size);
+
 	edivider();
 
-	/*
-	 * If the enclave is trusted, derive the MK and SK. Also get
-	 * SHA256 hashes of these so we can verify there's a shared
-	 * secret between us and the client.
-	 */
-
-	// if ( msg4->status == Trusted ) {
-	// 	unsigned char hashmk[32], hashsk[32];
-	//
-	// 	if ( debug ) eprintf("+++ Deriving the MK and SK\n");
-	// 	cmac128(session->kdk, (unsigned char *)("\x01MK\x00\x80\x00"),
-	// 		6, session->mk);
-	// 	cmac128(session->kdk, (unsigned char *)("\x01SK\x00\x80\x00"),
-	// 		6, session->sk);
-	//
-	// 	sha256_digest(session->mk, 16, hashmk);
-	// 	sha256_digest(session->sk, 16, hashsk);
-	//
-	// 	if ( verbose ) {
-	// 		if ( debug ) {
-	// 			eprintf("MK         = %s\n", hexstring(session->mk, 16));
-	// 			eprintf("SK         = %s\n", hexstring(session->sk, 16));
-	// 		}
-	// 		eprintf("SHA256(MK) = %s\n", hexstring(hashmk, 32));
-	// 		eprintf("SHA256(SK) = %s\n", hexstring(hashsk, 32));
-	// 	}
-	// }
-
 	free(msg3);
+	free(msg4);
 
 	return 1;
 }
