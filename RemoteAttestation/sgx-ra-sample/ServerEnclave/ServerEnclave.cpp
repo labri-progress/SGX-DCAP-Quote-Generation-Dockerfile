@@ -41,6 +41,7 @@
 #include "rsa.h"
 #include "byteorder.h"
 #include "time.h"
+#include "enclave_verify.h"
 
 // We're using a ""private"" key to communicate with pods.
 // Pods may actually communicate with an adversary since it is quite easy to fetch this key but security is ensured at a later stage
@@ -399,11 +400,6 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
         return SGX_ERROR_INVALID_STATE;
     }
 
-	#ifdef NO_DCAP // ignore the verification result
-	session.step = 3;
-	return SGX_SUCCESS;
-	#endif
-
     if (p_report == NULL || report_size != sizeof(sgx_report_t) ||
         p_rand == NULL || rand_size == 0 ||
         p_qveid == NULL || qveid_size == 0 ||
@@ -498,11 +494,13 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
         ret = SGX_SUCCESS;
     } while (0);
 
+	#ifndef NO_DCAP // ignore the verification result
 	// In case the verification of the QVE result fails
 	if (ret != SGX_SUCCESS) {
     	session.step = 0;
 		return ret;
 	}
+	#endif
 
 	// Interpret the QVE result
     time_t tcbLevelDate = ((sgx_ql_qv_supplemental_t*) p_supplemental_data)->tcb_level_date_tag;
@@ -552,13 +550,23 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
         break;
     }
 
-	if (ret == SGX_SUCCESS) {
-		session.step = 3;
-	} else {
+	#ifndef NO_DCAP // ignore the verification result
+	if (ret != SGX_SUCCESS) {
 		session.step = 0;
+		return ret;
+	}
+	#endif
+
+ 	sgx_report_body_t *app_report = (sgx_report_body_t *) &((sgx_quote_t *) session.quote)->report_body;
+	if (!verify_enclave_identity(app_report)) {
+		// Enclave does not pass the policy
+		session.step = 0;
+		return SGX_ERROR_UNEXPECTED;
 	}
 
-	return ret;
+	session.step = 3;
+
+	return SGX_SUCCESS;
 }
 
 unsigned char secret[] = "This is a different secret";

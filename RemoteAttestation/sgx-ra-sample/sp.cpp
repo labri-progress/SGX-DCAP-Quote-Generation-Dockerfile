@@ -39,7 +39,6 @@ in the License.
 #include "msgio.h"
 #include "protocol.h"
 #include "logfile.h"
-#include "enclave_verify.h"
 #include "quote_verify.h"
 #include "ServerEnclave_u.h"
 
@@ -53,29 +52,15 @@ using namespace std;
 
 #define SECRET_PROVISIONING_ENCLAVE "ServerEnclave.signed.so"
 
-static const unsigned char def_service_private_key[32] = {
-	0x90, 0xe7, 0x6c, 0xbb, 0x2d, 0x52, 0xa1, 0xce,
-	0x3b, 0x66, 0xde, 0x11, 0x43, 0x9c, 0x87, 0xec,
-	0x1f, 0x86, 0x6a, 0x3b, 0x65, 0xb6, 0xae, 0xea,
-	0xad, 0x57, 0x34, 0x53, 0xd1, 0x03, 0x8c, 0x01
-};
-
 typedef struct config_struct {
 	sgx_spid_t spid;
 	uint16_t quote_type;
-	EVP_PKEY *service_private_key;
-	unsigned char kdk[16];
-	int strict_trust;
-	sgx_measurement_t req_mrsigner;
-	sgx_prod_id_t req_isv_product_id;
-	sgx_isv_svn_t min_isvsvn;
-	int allow_debug_enclave;
 } config_t;
 
 void usage();
 void cleanup_and_exit(int signo);
 
-int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2, char **sigrl, config_t *config);
+int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2, config_t *config);
 
 int process_msg3 (MsgIO *msg, sgx_ra_msg1_t *msg1, config_t *config);
 
@@ -95,10 +80,6 @@ int main(int argc, char *argv[])
 	char flag_noproxy= 0;
 	char flag_prod= 0;
 	char flag_stdio= 0;
-	char flag_isv_product_id= 0;
-	char flag_min_isvsvn= 0;
-	char flag_mrsigner= 0;
-	char *sigrl = NULL;
 	config_t config;
 	int oops;
 	char *port= NULL;
@@ -108,17 +89,10 @@ int main(int argc, char *argv[])
 
 	static struct option long_opt[] =
 	{
-		{"no-debug-enclave",		no_argument,		0, 'D'},
-		{"service-key-file",		required_argument,	0, 'K'},
-		{"mrsigner",				required_argument,  0, 'N'},
 		{"production",				no_argument,		0, 'P'},
-		{"isv-product-id",			required_argument,	0, 'R'},
 		{"spid-file",				required_argument,	0, 'S'},
-		{"min-isv-svn",				required_argument,  0, 'V'},
-		{"strict-trust-mode",		no_argument,		0, 'X'},
 		{"debug",					no_argument,		0, 'd'},
 		{"help",					no_argument, 		0, 'h'},
-		{"key",						required_argument,	0, 'k'},
 		{"linkable",				no_argument,		0, 'l'},
 		{"api-version",				required_argument,	0, 'r'},
 		{"spid",					required_argument,	0, 's'},
@@ -137,12 +111,6 @@ int main(int argc, char *argv[])
 
 	memset(&config, 0, sizeof(config));
 
-	/*
-	 * For demo purposes only. A production/release enclave should
-	 * never allow debug-mode enclaves to attest.
-	 */
-	config.allow_debug_enclave= 1;
-
 	/* Parse our options */
 
 	while (1) {
@@ -153,7 +121,7 @@ int main(int argc, char *argv[])
 		unsigned long val;
 
 		c = getopt_long(argc, argv,
-			"DK:N:PR:S:V:X:dhk:lp:r:s:vxz",
+			"PS:dhlp:r:s:vxz",
 			long_opt, &opt_index);
 		if (c == -1) break;
 
@@ -162,42 +130,9 @@ int main(int argc, char *argv[])
 		case 0:
 			break;
 
-		case 'D':
-			config.allow_debug_enclave= 0;
-			break;
-
-
-		case 'K':
-			if (!key_load_file(&config.service_private_key, optarg, KEY_PRIVATE)) {
-				crypto_perror("key_load_file");
-				eprintf("%s: could not load EC private key\n", optarg);
-				return 1;
-			}
-			break;
-
-		case 'N':
-			if (!from_hexstring((unsigned char *)&config.req_mrsigner,
-				optarg, 32)) {
-
-				eprintf("MRSIGNER must be 64-byte hex string\n");
-				return 1;
-			}
-			++flag_mrsigner;
-			break;
 
         case 'P':
 			flag_prod = 1;
-			break;
-
-		case 'R':
-			eptr= NULL;
-			val= strtoul(optarg, &eptr, 10);
-			if ( *eptr != '\0' || val > 0xFFFF ) {
-				eprintf("Product Id must be a positive integer <= 65535\n");
-				return 1;
-			}
-			config.req_isv_product_id= val;
-			++flag_isv_product_id;
 			break;
 
 		case 'S':
@@ -209,31 +144,8 @@ int main(int argc, char *argv[])
 
 			break;
 
-		case 'V':
-			eptr= NULL;
-			val= strtoul(optarg, &eptr, 10);
-			if ( *eptr != '\0' || val > (unsigned long) 0xFFFF ) {
-				eprintf("Minimum ISV SVN must be a positive integer <= 65535\n");
-				return 1;
-			}
-			config.min_isvsvn= val;
-			++flag_min_isvsvn;
-			break;
-
-		case 'X':
-			config.strict_trust= 1;
-			break;
-
 		case 'd':
 			debug = 1;
-			break;
-
-		case 'k':
-			if (!key_load(&config.service_private_key, optarg, KEY_PRIVATE)) {
-				crypto_perror("key_load");
-				eprintf("%s: could not load EC private key\n", optarg);
-				return 1;
-			}
 			break;
 
 		case 'l':
@@ -284,52 +196,6 @@ int main(int argc, char *argv[])
 			perror("strdup");
 			return 1;
 		}
-	}
-
-	/*
-	 * Use the hardcoded default key unless one is provided on the
-	 * command line. Most real-world services would hardcode the
-	 * key since the public half is also hardcoded into the enclave.
-	 */
-
-	if (config.service_private_key == NULL) {
-		if (debug) {
-			eprintf("Using default private key\n");
-		}
-		config.service_private_key = key_private_from_bytes(def_service_private_key);
-		if (config.service_private_key == NULL) {
-			crypto_perror("key_private_from_bytes");
-			return 1;
-		}
-
-	}
-
-	if (debug) {
-		eprintf("+++ using private key:\n");
-		PEM_write_PrivateKey(stderr, config.service_private_key, NULL,
-			NULL, 0, 0, NULL);
-		PEM_write_PrivateKey(fplog, config.service_private_key, NULL,
-			NULL, 0, 0, NULL);
-	}
-
-	if (!flag_spid) {
-		eprintf("--spid or --spid-file is required\n");
-		flag_usage = 1;
-	}
-
-	if ( ! flag_isv_product_id ) {
-		eprintf("--isv-product-id is required\n");
-		flag_usage = 1;
-	}
-
-	if ( ! flag_min_isvsvn ) {
-		eprintf("--min-isvsvn is required\n");
-		flag_usage = 1;
-	}
-
-	if ( ! flag_mrsigner ) {
-		eprintf("--mrsigner is required\n");
-		flag_usage = 1;
 	}
 
 	if (flag_usage) usage();
@@ -388,7 +254,7 @@ int main(int argc, char *argv[])
 
 		/* Read message 0 and 1, then generate message 2 */
 
-		if ( ! process_msg1(msgio, &msg1, &msg2, &sigrl, &config) ) {
+		if ( ! process_msg1(msgio, &msg1, &msg2, &config) ) {
 
 			eprintf("error processing msg1\n");
 			goto disconnect;
@@ -434,7 +300,7 @@ disconnect:
  * Read and process message 1.
  */
 int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
-	sgx_ra_msg2_t *msg2, char **sigrl, config_t *config)
+	sgx_ra_msg2_t *msg2, config_t *config)
 {
 	sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_status_t process_msg1_ret = SGX_SUCCESS;
@@ -571,14 +437,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1, config_t *config)
 
   	q= (sgx_quote_t *) msg3->quote;
  	r= (sgx_report_body_t *) &q->report_body;
-	if ( ! verify_enclave_identity(config->req_mrsigner,
-		config->req_isv_product_id, config->min_isvsvn,
-		config->allow_debug_enclave, r) ) {
-
-		eprintf("Invalid enclave.\n");
-		msg4->status= NotTrusted;
-		goto sendmsg4;
-	}
 
 	msg4->secret_size = secret_size;
 

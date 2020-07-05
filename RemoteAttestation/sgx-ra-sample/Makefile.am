@@ -52,7 +52,7 @@ ServerEnclave.edl: ServerEnclave/ServerEnclave.edl
 ServerEnclave.signed.so: ServerEnclave/ServerEnclave.signed.so
 	ln -s $?
 
-ServerEnclave/ServerEnclave.signed.so:
+ServerEnclave/ServerEnclave.signed.so: policy
 	make -C ServerEnclave
 
 ## Additional automake variables
@@ -96,7 +96,7 @@ client_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
 ## sp
 
-sp_SOURCES = sp.cpp enclave_verify.c quote_verify.cpp $(common)
+sp_SOURCES = sp.cpp quote_verify.cpp $(common)
 BUILT_SOURCES += policy ServerEnclave_u.c ServerEnclave_u.h
 EXTRA_sp_DEPENDENCIES = ServerEnclave.signed.so
 
@@ -105,9 +105,9 @@ EXTRA_sp_DEPENDENCIES = ServerEnclave.signed.so
 mrsigner_SOURCES = mrsigner.cpp crypto.c hexutil.c
 
 ## Extract the enclave SIGSTRUCT and use it to calculate MRSIGNER
-policy: mrsigner policy.in Enclave.signed.so
+policy: mrsigner policy.in.h Enclave.signed.so
 	$(SGX_SIGN) dump -cssfile enclave_sigstruct_raw -dumpfile /dev/null -enclave Enclave.signed.so
-	sed -e "s^@MRSIGNER@^`./mrsigner.sh enclave_sigstruct_raw`^" policy.in > policy
+	sed -e "s^@MRSIGNER@^`./mrsigner.sh enclave_sigstruct_raw`^" policy.in.h > policy.h
 	rm -f enclave_sigstruct_raw
 
 sp_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
