@@ -46,6 +46,8 @@ enclave {
 
 
     trusted {
+        public void initialize_enclave();
+
         public sgx_status_t ecall_process_msg1(
                                 sgx_ra_msg1_t msg1,
                                 [out] sgx_ra_msg2_t *msg2

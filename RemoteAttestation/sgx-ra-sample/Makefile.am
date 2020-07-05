@@ -81,7 +81,7 @@ bin_PROGRAMS = client sp mrsigner
 ## You can't use $(wildcard ...) with automake so all source files
 ## have to be explicitly listed.
 
-common = byteorder.c common.cpp crypto.c hexutil.c fileio.c \
+common = common.cpp crypto.c hexutil.c fileio.c \
 	msgio.cpp logfile.c
 
 ## client

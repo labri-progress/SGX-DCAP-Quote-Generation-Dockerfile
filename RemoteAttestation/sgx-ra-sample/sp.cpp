@@ -36,7 +36,6 @@ in the License.
 #include "hexutil.h"
 #include "fileio.h"
 #include "crypto.h"
-#include "byteorder.h"
 #include "msgio.h"
 #include "protocol.h"
 #include "logfile.h"
@@ -370,7 +369,14 @@ int main(int argc, char *argv[])
     eid = (sgx_enclave_id_t*) malloc(sizeof(sgx_enclave_id_t));
     sgx_ret = sgx_create_enclave(SECRET_PROVISIONING_ENCLAVE, SGX_DEBUG_FLAG, &token, &updated, eid, NULL);
     if (sgx_ret != SGX_SUCCESS) {
-        printf("\tError: Can't load Secret Provisioning Enclave. 0x%04x\n", sgx_ret);
+        eprintf("\tError: Can't load Secret Provisioning Enclave. 0x%04x\n", sgx_ret);
+        return 1;
+    }
+
+	// initialize provisioning keys
+	sgx_ret = initialize_enclave(*eid);
+    if (sgx_ret != SGX_SUCCESS) {
+        eprintf("\tError: Could not initialize Secret Provisioning Enclave. 0x%04x\n", sgx_ret);
         return 1;
     }
 

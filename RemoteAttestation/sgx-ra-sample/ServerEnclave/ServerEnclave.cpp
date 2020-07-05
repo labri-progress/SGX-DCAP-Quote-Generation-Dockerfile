@@ -67,11 +67,28 @@ typedef struct ra_session_struct {
 
 ra_session_t session = {0};
 
+bool enclave_initialized = false;
+
 RSA* key_P1;
 RSA* key_P2;
 
 char* symmetry_key_P1;
 char* symmetry_key_P2;
+
+/**
+ * This function generates the keys later provided to proxies.
+ */
+void initialize_enclave()
+{
+	if (enclave_initialized) {
+        return;
+	}
+
+	key_P1 = rsa_generate_keys();
+	key_P2 = rsa_generate_keys();
+
+	enclave_initialized = true;
+}
 
 int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a)
 {
@@ -118,7 +135,7 @@ int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a)
 
 sgx_status_t ecall_process_msg1(sgx_ra_msg1_t msg1, sgx_ra_msg2_t *msg2) {
     // An attestation is already engaged, it should be finished before calling this function
-    if (session.step != 0) {
+    if (!enclave_initialized || session.step != 0) {
         return SGX_ERROR_INVALID_STATE;
     }
 
