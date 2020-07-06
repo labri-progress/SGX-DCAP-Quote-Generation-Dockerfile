@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y \
 
 # Install the SDK
 WORKDIR /opt/intel
-RUN wget https://download.01.org/intel-sgx/latest/dcap-latest/linux/distro/ubuntuServer18.04/sgx_linux_x64_sdk_2.9.101.2.bin
-RUN chmod 777 sgx_linux_x64_sdk_2.9.101.2.bin
-RUN sh -c 'echo yes | ./sgx_linux_x64_sdk_2.9.101.2.bin'
+RUN wget https://download.01.org/intel-sgx/sgx-dcap/1.7/linux/distro/ubuntu18.04-server/sgx_linux_x64_sdk_2.10.100.2.bin
+RUN chmod 777 sgx_linux_x64_sdk_2.10.100.2.bin
+RUN sh -c 'echo yes | ./sgx_linux_x64_sdk_2.10.100.2.bin'
 
 # Install DCAP packages
 # DCAP repository setup
