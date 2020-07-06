@@ -59,12 +59,6 @@ if [ "$USE_PLATFORM_SERVICES" != "" -a "0$USE_PLATFORM_SERVICES" -ne 0 ]; then
 	cl_pse=-m
 fi
 
-# Optional service provider/server settings
-
-if [ "$POLICY_STRICT_TRUST" != "" -a "0$POLICY_STRICT_TRUST" -ne 0 ]; then
-	sp_strict_trust="-X"
-fi
-
 # Debugging options
 
 if [ "$VERBOSE" != "" -a "0$VERBOSE" -ne 0 ]; then

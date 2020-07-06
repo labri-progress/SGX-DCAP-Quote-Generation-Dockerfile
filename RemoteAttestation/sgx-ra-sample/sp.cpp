@@ -411,6 +411,7 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1, config_t *config)
 	}
 
 	ra_msg4_t *msg4 = (ra_msg4_t*) malloc(sizeof(ra_msg4_t) + secret_size);
+	memset(msg4, 0, sizeof(ra_msg4_t) + secret_size);
 
 	msg4->status = Trusted;
 	if (ecdsa_quote_verification(*eid, (uint8_t*) &msg3->quote, quote_size) != 0) {
