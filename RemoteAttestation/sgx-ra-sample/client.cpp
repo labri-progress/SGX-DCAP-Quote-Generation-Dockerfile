@@ -39,7 +39,6 @@ using namespace std;
 #include "fileio.h"
 #include "msgio.h"
 #include "logfile.h"
-#include "quote_size.h"
 
 #define MAX_LEN 80
 
@@ -53,7 +52,6 @@ using namespace std;
 
 typedef struct config_struct {
 	uint32_t flags;
-	sgx_quote_nonce_t nonce;
 	char *server;
 	char *port;
 } config_t;
@@ -148,10 +146,6 @@ int do_attestation(sgx_enclave_id_t eid, config_t *config);
 char debug= 0;
 char verbose= 0;
 
-#define MODE_ATTEST 0x0
-#define MODE_EPID 	0x1
-#define MODE_QUOTE	0x2
-
 #define OPT_NONCE	0x02
 #define OPT_LINK	0x04
 #define OPT_PUBKEY	0x08
@@ -206,9 +200,6 @@ int main (int argc, char *argv[])
 	{
 		{"help",		no_argument,		0, 'h'},
 		{"debug",		no_argument,		0, 'd'},
-		{"nonce",		required_argument,	0, 'n'},
-		{"nonce-file",	required_argument,	0, 'N'},
-		{"rand-nonce",	no_argument,		0, 'r'},
 		{"linkable",	no_argument,		0, 'l'},
 		{"verbose",		no_argument,		0, 'v'},
 		{"stdio",		no_argument,		0, 'z'},
@@ -222,59 +213,18 @@ int main (int argc, char *argv[])
 		int opt_index= 0;
 		unsigned char keyin[64];
 
-		c= getopt_long(argc, argv, "N:S:dhln:rs:vz", long_opt,
+		c= getopt_long(argc, argv, "S:dhls:vz", long_opt,
 			&opt_index);
 		if ( c == -1 ) break;
 
 		switch(c) {
 		case 0:
 			break;
-		case 'N':
-			if ( ! from_hexstring_file((unsigned char *) &config.nonce,
-					optarg, 16)) {
-
-				fprintf(stderr, "nonce must be 32-byte hex string\n");
-				exit(1);
-			}
-			SET_OPT(config.flags, OPT_NONCE);
-
-			break;
-
-			break;
 		case 'd':
 			debug= 1;
 			break;
 		case 'l':
 			SET_OPT(config.flags, OPT_LINK);
-			break;
-		case 'n':
-			if ( strlen(optarg) < 32 ) {
-				fprintf(stderr, "nonce must be 32-byte hex string\n");
-				exit(1);
-			}
-			if ( ! from_hexstring((unsigned char *) &config.nonce,
-					(unsigned char *) optarg, 16) ) {
-
-				fprintf(stderr, "nonce must be 32-byte hex string\n");
-				exit(1);
-			}
-
-			SET_OPT(config.flags, OPT_NONCE);
-
-			break;
-		case 'r':
-			for(i= 0; i< 2; ++i) {
-				int retry= 10;
-				unsigned char ok= 0;
-				uint64_t *np= (uint64_t *) &config.nonce;
-
-				while ( !ok && retry ) ok= _rdrand64_step(&np[i]);
-				if ( ok == 0 ) {
-					fprintf(stderr, "nonce: RDRAND underflow\n");
-					exit(1);
-				}
-			}
-			SET_OPT(config.flags, OPT_NONCE);
 			break;
 		case 'v':
 			verbose= 1;
@@ -766,12 +716,8 @@ void usage ()
 {
 	fprintf(stderr, "usage: client [ options ] [ host[:port] ]\n\n");
 	fprintf(stderr, "Required:\n");
-	fprintf(stderr, "  -N, --nonce-file=FILE    Set a nonce from a file containing a 32-byte\n");
-	fprintf(stderr, "                             ASCII hex string\n");
 	fprintf(stderr, "  -d, --debug              Show debugging information\n");
 	fprintf(stderr, "  -l, --linkable           Specify a linkable quote (default: unlinkable)\n");
-	fprintf(stderr, "  -n, --nonce=HEXSTRING    Set a nonce from a 32-byte ASCII hex string\n");
-	fprintf(stderr, "  -r                       Generate a nonce using RDRAND\n");
 	fprintf(stderr, "  -v, --verbose            Print decoded RA messages to stderr\n");
 	fprintf(stderr, "  -z                       Read from stdin and write to stdout instead\n");
 	fprintf(stderr, "                             connecting to a server.\n");

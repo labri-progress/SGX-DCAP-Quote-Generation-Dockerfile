@@ -15,23 +15,6 @@ SPID=0123456789ABCDEF0123456789ABCDEF
 
 LINKABLE=0
 
-
-#======================================================================
-# Client options
-#======================================================================
-
-# Set to non-zero to have the client generate a random nonce.
-
-RANDOM_NONCE=1
-
-# Set to non-zero to have the client generate a platform manifest.
-# This requires a PSE session, and thus support for platform
-# services.
-#
-# (Note that server hardware does not support platform services)
-
-USE_PLATFORM_SERVICES=0
-
 #======================================================================
 # Debugging options
 #======================================================================

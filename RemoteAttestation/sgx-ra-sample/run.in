@@ -49,16 +49,6 @@ if [ "$LINKABLE" != "" -a "0$LINKABLE" -ne 0 ]; then
 	flag_linkable=-l
 fi
 
-# Optional client settings
-
-if [ "$RANDOM_NONCE" != "" -a "0$RANDOM_NONCE" -ne 0 ]; then
-	cl_nonce=-r
-fi
-
-if [ "$USE_PLATFORM_SERVICES" != "" -a "0$USE_PLATFORM_SERVICES" -ne 0 ]; then
-	cl_pse=-m
-fi
-
 # Debugging options
 
 if [ "$VERBOSE" != "" -a "0$VERBOSE" -ne 0 ]; then
@@ -76,7 +66,6 @@ fi
 if [ "$PROG" = "run-client" ]
 then
 	./client \
-		$cl_nonce $cl_pse \
 		$flag_linkable $flag_debug $flag_verbose $flag_dcap \
 		"$@"
 elif [ "$PROG" = "run-server" ]

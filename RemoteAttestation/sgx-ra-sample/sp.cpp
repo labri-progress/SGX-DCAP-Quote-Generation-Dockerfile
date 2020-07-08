@@ -31,7 +31,6 @@ in the License.
 #include <sgx_report.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include "json.hpp"
 #include "common.h"
 #include "hexutil.h"
 #include "fileio.h"
@@ -41,7 +40,6 @@ in the License.
 #include "quote_verify.h"
 #include "ServerEnclave_u.h"
 
-using namespace json;
 using namespace std;
 
 #include <map>

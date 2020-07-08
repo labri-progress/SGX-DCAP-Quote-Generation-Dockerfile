@@ -86,7 +86,7 @@ common = common.cpp hexutil.c fileio.c \
 
 ## client
 
-client_SOURCES = client.cpp sgx_detect_linux.c sgx_stub.c quote_size.c \
+client_SOURCES = client.cpp sgx_detect_linux.c sgx_stub.c \
 	$(common)
 nodist_client_SOURCES = Enclave_u.c Enclave_u.h
 EXTRA_client_DEPENDENCIES = Enclave.signed.so

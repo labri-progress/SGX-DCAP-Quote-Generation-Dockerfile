@@ -92,13 +92,8 @@ int to_hexstring_file (unsigned char *src, char *file, size_t len)
 {
 	FILE *fp;
 
-#ifdef _WIN32
-	if (fopen_s(&fp, file, "w") != 0) {
-		fprintf(stderr, "fopen_s: ");
-#else
 	if ( (fp= fopen(file, "w")) == NULL ) {
 		fprintf(stderr, "fopen: ");
-#endif
 		perror(file);
 		return 0;
 	}
