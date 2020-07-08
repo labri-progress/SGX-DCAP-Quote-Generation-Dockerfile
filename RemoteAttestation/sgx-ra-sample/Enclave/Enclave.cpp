@@ -38,48 +38,9 @@ static const sgx_ec256_public_t def_service_public_key = {
 
 };
 
-#define PSE_RETRIES	5	/* Arbitrary. Not too long, not too short. */
-
-/*----------------------------------------------------------------------
- * WARNING
- *----------------------------------------------------------------------
- *
- * End developers should not normally be calling these functions
- * directly when doing remote attestation:
- *
- *    sgx_get_ps_sec_prop()
- *    sgx_get_quote()
- *    sgx_get_quote_size()
- *    sgx_get_report()
- *    sgx_init_quote()
- *
- * These functions short-circuits the RA process in order
- * to generate an enclave quote directly!
- *
- * The high-level functions provided for remote attestation take
- * care of the low-level details of quote generation for you:
- *
- *   sgx_ra_init()
- *   sgx_ra_get_msg1
- *   sgx_ra_proc_msg2
- *
- *----------------------------------------------------------------------
- */
-
-sgx_status_t enclave_ra_init(sgx_ec256_public_t key, int b_pse,
-	sgx_ra_context_t *ctx, sgx_status_t *pse_status)
+sgx_status_t enclave_ra_init(sgx_ra_context_t *ctx)
 {
-	sgx_status_t ra_status;
-
-	ra_status= sgx_ra_init(&key, 0, ctx);
-
-	return ra_status;
-}
-
-sgx_status_t enclave_ra_init_def(int b_pse, sgx_ra_context_t *ctx,
-	sgx_status_t *pse_status)
-{
-	return enclave_ra_init(def_service_public_key, b_pse, ctx, pse_status);
+	return sgx_ra_init(&def_service_public_key, 0, ctx);
 }
 
 sgx_status_t enclave_put_secret(unsigned char* secret, size_t secret_size, sgx_aes_gcm_128bit_tag_t* mac, sgx_ra_context_t context)

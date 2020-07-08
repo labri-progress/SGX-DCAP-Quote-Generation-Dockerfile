@@ -81,7 +81,7 @@ bin_PROGRAMS = client sp mrsigner
 ## You can't use $(wildcard ...) with automake so all source files
 ## have to be explicitly listed.
 
-common = common.cpp crypto.c hexutil.c fileio.c \
+common = common.cpp hexutil.c fileio.c \
 	msgio.cpp logfile.c
 
 ## client
@@ -102,7 +102,7 @@ EXTRA_sp_DEPENDENCIES = ServerEnclave.signed.so
 
 ## mrsigner (helper app)
 
-mrsigner_SOURCES = mrsigner.cpp crypto.c hexutil.c
+mrsigner_SOURCES = mrsigner.cpp hexutil.c crypto.c
 
 ## Extract the enclave SIGSTRUCT and use it to calculate MRSIGNER
 policy: mrsigner policy.in.h Enclave.signed.so

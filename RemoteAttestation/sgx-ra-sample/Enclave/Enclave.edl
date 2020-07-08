@@ -27,11 +27,7 @@ enclave {
 	trusted {
 		include "config.h"
 
-		public sgx_status_t enclave_ra_init(sgx_ec256_public_t key, int b_pse,
-			[out] sgx_ra_context_t *ctx, [out] sgx_status_t *pse_status);
-
-		public sgx_status_t enclave_ra_init_def(int b_pse,
-			[out] sgx_ra_context_t *ctx, [out] sgx_status_t *pse_status);
+		public sgx_status_t enclave_ra_init([out] sgx_ra_context_t *ctx);
 
 		public sgx_status_t enclave_put_secret([in, size=secret_size] unsigned char* secret, size_t secret_size, [in] sgx_aes_gcm_128bit_tag_t* mac, sgx_ra_context_t context);
 

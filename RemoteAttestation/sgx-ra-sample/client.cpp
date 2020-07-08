@@ -37,7 +37,6 @@ using namespace std;
 #include "sgx_detect.h"
 #include "hexutil.h"
 #include "fileio.h"
-#include "crypto.h"
 #include "msgio.h"
 #include "logfile.h"
 #include "quote_size.h"
@@ -54,7 +53,6 @@ using namespace std;
 
 typedef struct config_struct {
 	uint32_t flags;
-	sgx_ec256_public_t pubkey;
 	sgx_quote_nonce_t nonce;
 	char *server;
 	char *port;
@@ -154,7 +152,6 @@ char verbose= 0;
 #define MODE_EPID 	0x1
 #define MODE_QUOTE	0x2
 
-#define OPT_PSE		0x01
 #define OPT_NONCE	0x02
 #define OPT_LINK	0x04
 #define OPT_PUBKEY	0x08
@@ -213,8 +210,6 @@ int main (int argc, char *argv[])
 		{"nonce-file",	required_argument,	0, 'N'},
 		{"rand-nonce",	no_argument,		0, 'r'},
 		{"linkable",	no_argument,		0, 'l'},
-		{"pubkey",		optional_argument,	0, 'p'},
-		{"pubkey-file",	required_argument,	0, 'P'},
 		{"verbose",		no_argument,		0, 'v'},
 		{"stdio",		no_argument,		0, 'z'},
 		{ 0, 0, 0, 0 }
@@ -227,7 +222,7 @@ int main (int argc, char *argv[])
 		int opt_index= 0;
 		unsigned char keyin[64];
 
-		c= getopt_long(argc, argv, "N:P:S:dhln:p:rs:vz", long_opt,
+		c= getopt_long(argc, argv, "N:S:dhln:rs:vz", long_opt,
 			&opt_index);
 		if ( c == -1 ) break;
 
@@ -244,21 +239,6 @@ int main (int argc, char *argv[])
 			SET_OPT(config.flags, OPT_NONCE);
 
 			break;
-
-			break;
-		case 'P':
-			if ( ! key_load_file(&service_public_key, optarg, KEY_PUBLIC) ) {
-				fprintf(stderr, "%s: ", optarg);
-				crypto_perror("key_load_file");
-				exit(1);
-			}
-
-			if ( ! key_to_sgx_ec256(&config.pubkey, service_public_key) ) {
-				fprintf(stderr, "%s: ", optarg);
-				crypto_perror("key_to_sgx_ec256");
-				exit(1);
-			}
-			SET_OPT(config.flags, OPT_PUBKEY);
 
 			break;
 		case 'd':
@@ -280,21 +260,6 @@ int main (int argc, char *argv[])
 			}
 
 			SET_OPT(config.flags, OPT_NONCE);
-
-			break;
-		case 'p':
-			if ( ! from_hexstring((unsigned char *) keyin,
-					(unsigned char *) optarg, 64)) {
-
-				fprintf(stderr, "key must be 128-byte hex string\n");
-				exit(1);
-			}
-
-			/* Reverse the byte stream to make a little endien style value */
-			for(i= 0; i< 32; ++i) config.pubkey.gx[i]= keyin[31-i];
-			for(i= 0; i< 32; ++i) config.pubkey.gy[i]= keyin[63-i];
-
-			SET_OPT(config.flags, OPT_PUBKEY);
 
 			break;
 		case 'r':
@@ -399,7 +364,7 @@ int main (int argc, char *argv[])
 
 int do_attestation (sgx_enclave_id_t eid, config_t *config)
 {
-	sgx_status_t status, sgxrv, pse_status;
+	sgx_status_t status, sgxrv;
 	sgx_ra_msg1_t msg1;
 	sgx_ra_msg2_t *msg2 = NULL;
 	sgx_ra_msg3_t *msg3 = NULL;
@@ -411,7 +376,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 	MsgIO *msgio;
 	size_t msg4sz = 0;
 	int enclaveTrusted = NotTrusted; // Not Trusted
-	int b_pse= OPT_ISSET(flags, OPT_PSE);
 
 	if ( config->server == NULL ) {
 		msgio = new MsgIO();
@@ -436,15 +400,8 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 
 	/* Executes an ECALL that runs sgx_ra_init() */
 
-	if ( OPT_ISSET(flags, OPT_PUBKEY) ) {
-		if ( debug ) fprintf(stderr, "+++ using supplied public key\n");
-		status= enclave_ra_init(eid, &sgxrv, config->pubkey, b_pse,
-			&ra_ctx, &pse_status);
-	} else {
-		if ( debug ) fprintf(stderr, "+++ using default public key\n");
-		status= enclave_ra_init_def(eid, &sgxrv, b_pse, &ra_ctx,
-			&pse_status);
-	}
+	if ( debug ) fprintf(stderr, "+++ using default public key\n");
+	status= enclave_ra_init(eid, &sgxrv, &ra_ctx);
 
 	/* Did the ECALL succeed? */
 	if ( status != SGX_SUCCESS ) {
@@ -811,14 +768,9 @@ void usage ()
 	fprintf(stderr, "Required:\n");
 	fprintf(stderr, "  -N, --nonce-file=FILE    Set a nonce from a file containing a 32-byte\n");
 	fprintf(stderr, "                             ASCII hex string\n");
-	fprintf(stderr, "  -P, --pubkey-file=FILE   File containing the public key of the service\n");
-	fprintf(stderr, "                             provider.\n");
 	fprintf(stderr, "  -d, --debug              Show debugging information\n");
 	fprintf(stderr, "  -l, --linkable           Specify a linkable quote (default: unlinkable)\n");
 	fprintf(stderr, "  -n, --nonce=HEXSTRING    Set a nonce from a 32-byte ASCII hex string\n");
-	fprintf(stderr, "  -p, --pubkey=HEXSTRING   Specify the public key of the service provider\n");
-	fprintf(stderr, "                             as an ASCII hex string instead of using the\n");
-	fprintf(stderr, "                             default.\n");
 	fprintf(stderr, "  -r                       Generate a nonce using RDRAND\n");
 	fprintf(stderr, "  -v, --verbose            Print decoded RA messages to stderr\n");
 	fprintf(stderr, "  -z                       Read from stdin and write to stdout instead\n");

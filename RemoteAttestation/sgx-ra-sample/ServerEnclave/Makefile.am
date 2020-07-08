@@ -83,7 +83,7 @@ CLEANFILES+= $(ENCLAVE)_t.c $(ENCLAVE)_t.h
 ## files. You can't use the $(ENCLAVE) variable in the build
 ## target name (i.e., $(ENCLAVE)_SOURCES will not work).
 
-ServerEnclave_SOURCES = ServerEnclave_t.c ServerEnclave_t.h ServerEnclave.cpp crypto.c crypto.h byteorder.c byteorder.h rsa.cpp rsa.h enclave_verify.cpp enclave_verify.h \
+ServerEnclave_SOURCES = ServerEnclave_t.c ServerEnclave_t.h ServerEnclave.cpp ../crypto.c ../crypto.h byteorder.c byteorder.h rsa.cpp rsa.h enclave_verify.cpp enclave_verify.h \
 	$(ENCLAVE_KEY) $(ENCLAVE_CONFIG)
 
 
@@ -126,3 +126,7 @@ SGX_EXTRA_TLIBS=-lsgx_tkey_exchange -lsgx_tcxx \
 ##
 ## enclave_LDFLAGS = @SGX_ENCLAVE_LDFLAGS@
 ##
+
+
+# Allows to reference files in different directories
+AUTOMAKE_OPTIONS = subdir-objects
