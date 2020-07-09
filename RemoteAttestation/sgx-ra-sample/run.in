@@ -68,13 +68,19 @@ then
 	./client \
 		$flag_linkable $flag_debug $flag_verbose $flag_dcap \
 		"$@"
-elif [ "$PROG" = "run-server" ]
+elif [ "$PROG" = "run-provisioning" ]
 then
 	./provisioning_service \
 		-s $SPID \
 		$flag_linkable $flag_debug $flag_verbose $flag_dcap \
 		"$@"
+elif [ "$PROG" = "run-bootstrap" ]
+then
+	./bootstrap_service \
+		-s $SPID \
+		$flag_linkable $flag_debug $flag_verbose $flag_dcap \
+		"$@"
 else
-	echo "$PROG: unrecognized instance (expected run-client or run-server)" >&2
+	echo "$PROG: unrecognized instance (expected run-client, run-provisioning or run-bootstrap)" >&2
 	exit 1
 fi

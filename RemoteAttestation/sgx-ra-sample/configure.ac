@@ -88,11 +88,12 @@ dnl Write our configuration
 dnl ----------------------------------------------------------------------
 AC_CONFIG_FILES([
 	mrsigner.sh
-	run-server:run.in
+	run-bootstrap:run.in
+	run-provisioning:run.in
 	run-client:run.in
 	Makefile
 	Enclave/Makefile
 	ProvisioningEnclave/Makefile
-],[chmod -f 755 run-client run-server mrsigner.sh])
+],[chmod -f 755 run-client run-provisioning run-bootstrap mrsigner.sh])
 
 AC_OUTPUT

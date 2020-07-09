@@ -76,7 +76,7 @@ CLEANFILES = Enclave_u.c Enclave_u.h Enclave.edl Enclave.signed.so \
 
 server: provisioning_service
 
-bin_PROGRAMS = client provisioning_service mrsigner
+bin_PROGRAMS = client provisioning_service bootstrap_service mrsigner
 
 ## You can't use $(wildcard ...) with automake so all source files
 ## have to be explicitly listed.
@@ -94,25 +94,6 @@ BUILT_SOURCES = Enclave_u.c Enclave_u.h
 
 client_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
-## provisioning_service
-
-provisioning_service_SOURCES = provisioning_service.cpp quote_verify.cpp $(common)
-BUILT_SOURCES += policy ProvisioningEnclave_u.c ProvisioningEnclave_u.h
-EXTRA_provisioning_service_DEPENDENCIES = ProvisioningEnclave.signed.so
-
-## mrsigner (helper app)
-
-mrsigner_SOURCES = mrsigner.cpp hexutil.c crypto.c
-
-## Extract the enclave SIGSTRUCT and use it to calculate MRSIGNER
-policy: mrsigner policy.in.h Enclave.signed.so
-	$(SGX_SIGN) dump -cssfile enclave_sigstruct_raw -dumpfile /dev/null -enclave Enclave.signed.so
-	sed -e "s^@MRSIGNER@^`./mrsigner.sh enclave_sigstruct_raw`^" policy.in.h > policy.h
-	rm -f enclave_sigstruct_raw
-
-provisioning_service_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
-mrsigner_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
-
 ## Library flags. At minimum, an Intel SGX application will need:
 ##
 ##   -l$(SGX_URTS_LIB)
@@ -128,8 +109,42 @@ mrsigner_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 	-lcrypto -l:libsgx_capable.a -lpthread -ldl
 
-mrsigner_LDADD=-lcrypto
+
+## provisioning_service
+
+provisioning_service_SOURCES = provisioning_service.cpp quote_verify.cpp $(common)
+BUILT_SOURCES += policy ProvisioningEnclave_u.c ProvisioningEnclave_u.h
+EXTRA_provisioning_service_DEPENDENCIES = ProvisioningEnclave.signed.so
+
+provisioning_service_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
 nodist_provisioning_service_SOURCES = ProvisioningEnclave_u.c ProvisioningEnclave_u.h
 provisioning_service_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
 					-lsgx_usgxssl # SGX SSL
+
+
+## bootstrap_service
+
+bootstrap_service_SOURCES = bootstrap_service.cpp quote_verify.cpp $(common)
+EXTRA_bootstrap_service_DEPENDENCIES = ProvisioningEnclave.signed.so
+
+bootstrap_service_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
+
+nodist_bootstrap_service_SOURCES = ProvisioningEnclave_u.c ProvisioningEnclave_u.h
+bootstrap_service_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
+					-lsgx_usgxssl # SGX SSL
+
+
+## mrsigner (helper app)
+
+mrsigner_SOURCES = mrsigner.cpp hexutil.c crypto.c
+
+## Extract the enclave SIGSTRUCT and use it to calculate MRSIGNER
+policy: mrsigner policy.in.h Enclave.signed.so
+	$(SGX_SIGN) dump -cssfile enclave_sigstruct_raw -dumpfile /dev/null -enclave Enclave.signed.so
+	sed -e "s^@MRSIGNER@^`./mrsigner.sh enclave_sigstruct_raw`^" policy.in.h > policy.h
+	rm -f enclave_sigstruct_raw
+
+mrsigner_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
+
+mrsigner_LDADD=-lcrypto

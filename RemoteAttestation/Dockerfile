@@ -74,8 +74,15 @@ USER sgxuser
 CMD ./run-client
 
 
-FROM sample as server
+FROM sample as provisioning_service
 
 WORKDIR /var/app/sgx-ra-sample
 USER sgxuser
-CMD ./run-server --verbose
+CMD ./run-provisioning --verbose
+
+
+FROM sample as bootstrap_service
+
+WORKDIR /var/app/sgx-ra-sample
+USER sgxuser
+CMD ./run-bootstrap --verbose
