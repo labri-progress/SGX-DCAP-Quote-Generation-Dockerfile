@@ -14,7 +14,9 @@
 
  // The product ID for the enclave. This must match the ProdId in the
  // enclave configuration file.
-#define PRODID 0
+#define SERVICE_PRODID 0
+
+#define PROVISIONING_SERVICE_PRODID 0
 
 // The ISV software version number (ISV SVN) must be >= this value. This
 // allows service providers to enforce a minimum enclave version to utilize

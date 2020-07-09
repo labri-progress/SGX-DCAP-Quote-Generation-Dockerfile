@@ -46,7 +46,7 @@ bool verify_enclave_identity(sgx_report_body_t *report)
 	#endif
 
 	// Does the ISV product ID meet the minimum requirement?
-	if ( report->isv_prod_id != PRODID ) {
+	if ( report->isv_prod_id != SERVICE_PRODID ) {
 		// ISV Product Id mismatch
 
 		return false;

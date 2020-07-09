@@ -1,21 +1,6 @@
 # Use Bourne Shell style syntax for this file.
 
 #======================================================================
-# Global options
-#======================================================================
-
-# Your Service Provider ID. This should be a 32-character hex string.
-# [REQUIRED]
-
-SPID=0123456789ABCDEF0123456789ABCDEF
-
-
-# Set to a non-zero value if this SPID is associated with linkable
-# quotes. If you change this, you'll need to change SPID.
-
-LINKABLE=0
-
-#======================================================================
 # Debugging options
 #======================================================================
 

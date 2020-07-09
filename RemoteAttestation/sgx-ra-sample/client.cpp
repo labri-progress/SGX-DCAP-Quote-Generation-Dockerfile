@@ -51,7 +51,6 @@ using namespace std;
 #endif
 
 typedef struct config_struct {
-	uint32_t flags;
 	char *server;
 	char *port;
 } config_t;
@@ -146,16 +145,6 @@ int do_attestation(sgx_enclave_id_t eid, config_t *config);
 char debug= 0;
 char verbose= 0;
 
-#define OPT_NONCE	0x02
-#define OPT_LINK	0x04
-#define OPT_PUBKEY	0x08
-
-/* Macros to set, clear, and get the mode and options */
-
-#define SET_OPT(x,y)	x|=y
-#define CLEAR_OPT(x,y)	x=x&~y
-#define OPT_ISSET(x,y)	x&y
-
 #define ENCLAVE_NAME "Enclave.signed.so"
 
 int main (int argc, char *argv[])
@@ -200,7 +189,6 @@ int main (int argc, char *argv[])
 	{
 		{"help",		no_argument,		0, 'h'},
 		{"debug",		no_argument,		0, 'd'},
-		{"linkable",	no_argument,		0, 'l'},
 		{"verbose",		no_argument,		0, 'v'},
 		{"stdio",		no_argument,		0, 'z'},
 		{ 0, 0, 0, 0 }
@@ -213,7 +201,7 @@ int main (int argc, char *argv[])
 		int opt_index= 0;
 		unsigned char keyin[64];
 
-		c= getopt_long(argc, argv, "S:dhls:vz", long_opt,
+		c= getopt_long(argc, argv, "S:dhs:vz", long_opt,
 			&opt_index);
 		if ( c == -1 ) break;
 
@@ -222,9 +210,6 @@ int main (int argc, char *argv[])
 			break;
 		case 'd':
 			debug= 1;
-			break;
-		case 'l':
-			SET_OPT(config.flags, OPT_LINK);
 			break;
 		case 'v':
 			verbose= 1;
@@ -320,7 +305,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 	sgx_ra_msg3_t *msg3 = NULL;
 	ra_msg4_t *msg4 = NULL;
 	uint32_t msg3_sz;
-	uint32_t flags= config->flags;
 	sgx_ra_context_t ra_ctx= 0xdeadbeef;
 	int rv;
 	MsgIO *msgio;

@@ -43,12 +43,6 @@ fi
 
 . ./settings
 
-# Optional settings
-
-if [ "$LINKABLE" != "" -a "0$LINKABLE" -ne 0 ]; then
-	flag_linkable=-l
-fi
-
 # Debugging options
 
 if [ "$VERBOSE" != "" -a "0$VERBOSE" -ne 0 ]; then
@@ -66,13 +60,12 @@ fi
 if [ "$PROG" = "run-client" ]
 then
 	./client \
-		$flag_linkable $flag_debug $flag_verbose $flag_dcap \
+		$flag_debug $flag_verbose $flag_dcap \
 		"$@"
 elif [ "$PROG" = "run-provisioning" ]
 then
 	./provisioning_service \
-		-s $SPID \
-		$flag_linkable $flag_debug $flag_verbose $flag_dcap \
+		$flag_debug $flag_verbose $flag_dcap \
 		"$@"
 elif [ "$PROG" = "run-bootstrap" ]
 then

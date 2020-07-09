@@ -49,17 +49,12 @@ using namespace std;
 
 #define SECRET_PROVISIONING_ENCLAVE "ProvisioningEnclave.signed.so"
 
-typedef struct config_struct {
-	sgx_spid_t spid;
-	uint16_t quote_type;
-} config_t;
-
 void usage();
 void cleanup_and_exit(int signo);
 
-int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2, config_t *config);
+int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2);
 
-int process_msg3 (MsgIO *msg, sgx_ra_msg1_t *msg1, config_t *config);
+int process_msg3 (MsgIO *msg, sgx_ra_msg1_t *msg1);
 
 char debug = 0;
 char verbose = 0;
@@ -69,15 +64,9 @@ sgx_enclave_id_t *eid;
 
 int main(int argc, char *argv[])
 {
-	char flag_spid = 0;
-	char flag_pubkey = 0;
-	char flag_api_key = 0;
-	char flag_ca = 0;
 	char flag_usage = 0;
-	char flag_noproxy= 0;
 	char flag_prod= 0;
 	char flag_stdio= 0;
-	config_t config;
 	int oops;
 	char *port= NULL;
 	struct sigaction sact;
@@ -87,26 +76,17 @@ int main(int argc, char *argv[])
 	static struct option long_opt[] =
 	{
 		{"production",				no_argument,		0, 'P'},
-		{"spid-file",				required_argument,	0, 'S'},
 		{"debug",					no_argument,		0, 'd'},
 		{"help",					no_argument, 		0, 'h'},
-		{"linkable",				no_argument,		0, 'l'},
-		{"api-version",				required_argument,	0, 'r'},
-		{"spid",					required_argument,	0, 's'},
 		{"verbose",					no_argument,		0, 'v'},
-		{"no-proxy",				no_argument,		0, 'x'},
 		{"stdio",					no_argument,		0, 'z'},
 		{ 0, 0, 0, 0 }
 	};
 
 	/* Create a logfile to capture debug output and actual msg data */
 
-	fplog = create_logfile("sp.log");
-	fprintf(fplog, "Server log started\n");
-
-	/* Config defaults */
-
-	memset(&config, 0, sizeof(config));
+	fplog = create_logfile("provisioning_service.log");
+	fprintf(fplog, "Provisioning Service log started\n");
 
 	/* Parse our options */
 
@@ -118,7 +98,7 @@ int main(int argc, char *argv[])
 		unsigned long val;
 
 		c = getopt_long(argc, argv,
-			"PS:dhlp:r:s:vxz",
+			"Pdhvz",
 			long_opt, &opt_index);
 		if (c == -1) break;
 
@@ -132,33 +112,8 @@ int main(int argc, char *argv[])
 			flag_prod = 1;
 			break;
 
-		case 'S':
-			if (!from_hexstring_file((unsigned char *)&config.spid, optarg, 16)) {
-				eprintf("SPID must be 32-byte hex string\n");
-				return 1;
-			}
-			++flag_spid;
-
-			break;
-
 		case 'd':
 			debug = 1;
-			break;
-
-		case 'l':
-			config.quote_type = SGX_LINKABLE_SIGNATURE;
-			break;
-
-		case 's':
-			if (strlen(optarg) < 32) {
-				eprintf("SPID must be 32-byte hex string\n");
-				return 1;
-			}
-			if (!from_hexstring((unsigned char *)&config.spid, (unsigned char *)optarg, 16)) {
-				eprintf("SPID must be 32-byte hex string\n");
-				return 1;
-			}
-			++flag_spid;
 			break;
 
 		case 'v':
@@ -251,7 +206,7 @@ int main(int argc, char *argv[])
 
 		/* Read message 0 and 1, then generate message 2 */
 
-		if ( ! process_msg1(msgio, &msg1, &msg2, &config) ) {
+		if ( ! process_msg1(msgio, &msg1, &msg2) ) {
 
 			eprintf("error processing msg1\n");
 			goto disconnect;
@@ -281,7 +236,7 @@ int main(int argc, char *argv[])
 
 		/* Read message 3, and generate message 4 */
 
-		if ( ! process_msg3(msgio, &msg1, &config) ) {
+		if ( ! process_msg3(msgio, &msg1) ) {
 			eprintf("error processing msg3\n");
 			goto disconnect;
 		}
@@ -296,8 +251,7 @@ disconnect:
 /*
  * Read and process message 1.
  */
-int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
-	sgx_ra_msg2_t *msg2, config_t *config)
+int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2)
 {
 	sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_status_t process_msg1_ret = SGX_SUCCESS;
@@ -345,7 +299,7 @@ int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1,
 	return 1;
 }
 
-int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1, config_t *config)
+int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 {
 	sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_status_t process_msg3_ret = SGX_SUCCESS;
@@ -518,39 +472,10 @@ void cleanup_and_exit(int signo)
 void usage ()
 {
 	cerr << "usage: provisioning_service [ options ] [ port ]" NL
-"Required:" NL
-"  -N, --mrsigner=HEXSTRING" NL
-"                           Specify the MRSIGNER value of encalves that" NL
-"                           are allowed to attest. Enclaves signed by" NL
-"                           other signing keys are rejected." NNL
-"  -R, --isv-product-id=INT" NL
-"                           Specify the ISV Product Id for the service." NL
-"                           Only Enclaves built with this Product Id" NL
-"                           will be accepted." NNL
-"  -V, --min-isv-svn=INT" NL
-"                           The minimum ISV SVN that the service provider" NL
-"                           will accept. Enclaves with a lower ISV SVN" NL
-"                           are rejected." NNL
-"Required (one of):" NL
-"  -S, --spid-file=FILE     Set the SPID from a file containg a 32-byte" NL
-"                           ASCII hex string." NNL
-"  -s, --spid=HEXSTRING     Set the SPID from a 32-byte ASCII hex string." NNL
 "Optional:" NL
-"  -D, --no-debug-enclave   Reject Debug-mode enclaves (default: accept)" NNL
-"  -G, --list-agents        List available user agent names for --user-agent" NNL
-"  -K, --service-key-file=FILE" NL
-"                           The private key file for the service in PEM" NL
-"                           format (default: use hardcoded key). The " NL
-"                           client must be given the corresponding public" NL
-"                           key. Can't combine with --key." NNL
 "  -d, --debug              Print debug information to stderr." NNL
-"  -k, --key=HEXSTRING      The private key as a hex string. See --key-file" NL
-"                           for notes. Can't combine with --key-file." NNL
-"  -l, --linkable           Request a linkable quote (default: unlinkable)." NNL
 "  -v, --verbose            Be verbose. Print message structure details and" NL
 "                           the results of intermediate operations to stderr." NNL
-"  -x, --no-proxy           Do not use a proxy (force a direct connection), " NL
-"                           overriding environment." NNL
 "  -z  --stdio              Read from stdin and write to stdout instead of" NL
 "                           running as a network server." <<endl;
 
