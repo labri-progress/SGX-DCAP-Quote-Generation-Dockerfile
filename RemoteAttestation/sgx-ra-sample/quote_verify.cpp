@@ -10,11 +10,9 @@
 #include "sgx_qve_header.h"
 #include "time.h"
 
-#include "ServerEnclave_u.h"
+#include "ProvisioningEnclave_u.h"
 
 using namespace std;
-
-#define SAMPLE_ISV_ENCLAVE "ServerEnclave.signed.so"
 
 /**
  * @param quote - ECDSA quote buffer

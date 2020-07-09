@@ -26,7 +26,7 @@ include $(top_srcdir)/build-aux/sgx_app.am
 ##   SGX_UAE_SERVICE_LIB
 ##   SGX_EDGER8R
 
-SUBDIRS = Enclave ServerEnclave
+SUBDIRS = Enclave ProvisioningEnclave
 
 ## Supply additional flags to edger8r here.
 ##
@@ -46,14 +46,14 @@ Enclave/Enclave.signed.so:
 
 ## Needed to make our pattern rule work
 
-ServerEnclave.edl: ServerEnclave/ServerEnclave.edl
+ProvisioningEnclave.edl: ProvisioningEnclave/ProvisioningEnclave.edl
 	ln -s $?
 
-ServerEnclave.signed.so: ServerEnclave/ServerEnclave.signed.so
+ProvisioningEnclave.signed.so: ProvisioningEnclave/ProvisioningEnclave.signed.so
 	ln -s $?
 
-ServerEnclave/ServerEnclave.signed.so: policy
-	make -C ServerEnclave
+ProvisioningEnclave/ProvisioningEnclave.signed.so: policy
+	make -C ProvisioningEnclave
 
 ## Additional automake variables
 ##
@@ -68,7 +68,7 @@ AM_CPPFLAGS += -fno-builtin-memset @OPENSSL_CPPFLAGS@
 ## any edger8r generated files here.
 
 CLEANFILES = Enclave_u.c Enclave_u.h Enclave.edl Enclave.signed.so \
-	ServerEnclave_u.c ServerEnclave_u.h ServerEnclave.edl ServerEnclave.signed.so \
+	ProvisioningEnclave_u.c ProvisioningEnclave_u.h ProvisioningEnclave.edl ProvisioningEnclave.signed.so \
 	policy enclave_sigstruct_raw
 
 
@@ -97,8 +97,8 @@ client_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 ## sp
 
 sp_SOURCES = sp.cpp quote_verify.cpp $(common)
-BUILT_SOURCES += policy ServerEnclave_u.c ServerEnclave_u.h
-EXTRA_sp_DEPENDENCIES = ServerEnclave.signed.so
+BUILT_SOURCES += policy ProvisioningEnclave_u.c ProvisioningEnclave_u.h
+EXTRA_sp_DEPENDENCIES = ProvisioningEnclave.signed.so
 
 ## mrsigner (helper app)
 
@@ -130,6 +130,6 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 
 mrsigner_LDADD=-lcrypto
 
-nodist_sp_SOURCES = ServerEnclave_u.c ServerEnclave_u.h
+nodist_sp_SOURCES = ProvisioningEnclave_u.c ProvisioningEnclave_u.h
 sp_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
 					-lsgx_usgxssl # SGX SSL

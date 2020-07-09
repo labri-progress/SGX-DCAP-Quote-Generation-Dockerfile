@@ -29,7 +29,7 @@
  *
  */
 
-#include "ServerEnclave_t.h" /* print_string */
+#include "ProvisioningEnclave_t.h" /* print_string */
 #include <stdarg.h>
 #include <stdio.h> /* vsnprintf */
 #include <string.h>

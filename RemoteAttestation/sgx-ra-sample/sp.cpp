@@ -38,7 +38,7 @@ in the License.
 #include "protocol.h"
 #include "logfile.h"
 #include "quote_verify.h"
-#include "ServerEnclave_u.h"
+#include "ProvisioningEnclave_u.h"
 
 using namespace std;
 
@@ -47,7 +47,7 @@ using namespace std;
 #include <iostream>
 #include <algorithm>
 
-#define SECRET_PROVISIONING_ENCLAVE "ServerEnclave.signed.so"
+#define SECRET_PROVISIONING_ENCLAVE "ProvisioningEnclave.signed.so"
 
 typedef struct config_struct {
 	sgx_spid_t spid;

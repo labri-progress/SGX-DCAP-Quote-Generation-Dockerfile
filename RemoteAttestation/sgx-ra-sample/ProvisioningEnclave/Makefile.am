@@ -56,7 +56,7 @@ SGX_EDGER8R_FLAGS=--search-path ..
 ##
 ##    libexec_PROGRAMS=$(ENCLAVE)
 
-ENCLAVE=ServerEnclave
+ENCLAVE=ProvisioningEnclave
 ENCLAVE_CONFIG=$(ENCLAVE).config.xml
 ENCLAVE_KEY=$(ENCLAVE)_private.pem
 
@@ -83,7 +83,7 @@ CLEANFILES+= $(ENCLAVE)_t.c $(ENCLAVE)_t.h
 ## files. You can't use the $(ENCLAVE) variable in the build
 ## target name (i.e., $(ENCLAVE)_SOURCES will not work).
 
-ServerEnclave_SOURCES = ServerEnclave_t.c ServerEnclave_t.h ServerEnclave.cpp ../crypto.c ../crypto.h byteorder.c byteorder.h rsa.cpp rsa.h enclave_verify.cpp enclave_verify.h \
+ProvisioningEnclave_SOURCES = ProvisioningEnclave_t.c ProvisioningEnclave_t.h ProvisioningEnclave.cpp ../crypto.c ../crypto.h byteorder.c byteorder.h rsa.cpp rsa.h enclave_verify.cpp enclave_verify.h \
 	$(ENCLAVE_KEY) $(ENCLAVE_CONFIG)
 
 
@@ -103,7 +103,7 @@ ServerEnclave_SOURCES = ServerEnclave_t.c ServerEnclave_t.h ServerEnclave.cpp ..
 ## of the definition to make sure you pick up the right linker flags
 ## and SGX trusted libraries.
 
-ServerEnclave_LDADD = @SGX_ENCLAVE_LDADD@
+ProvisioningEnclave_LDADD = @SGX_ENCLAVE_LDADD@
 
 
 ## Place any additional trusted libraries that your enclave may need in
