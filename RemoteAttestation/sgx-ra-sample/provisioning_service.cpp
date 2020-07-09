@@ -517,7 +517,7 @@ void cleanup_and_exit(int signo)
 
 void usage ()
 {
-	cerr << "usage: sp [ options ] [ port ]" NL
+	cerr << "usage: provisioning_service [ options ] [ port ]" NL
 "Required:" NL
 "  -N, --mrsigner=HEXSTRING" NL
 "                           Specify the MRSIGNER value of encalves that" NL

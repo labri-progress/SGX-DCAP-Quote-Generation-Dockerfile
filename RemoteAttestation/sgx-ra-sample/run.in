@@ -70,7 +70,7 @@ then
 		"$@"
 elif [ "$PROG" = "run-server" ]
 then
-	./sp \
+	./provisioning_service \
 		-s $SPID \
 		$flag_linkable $flag_debug $flag_verbose $flag_dcap \
 		"$@"

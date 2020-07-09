@@ -74,9 +74,9 @@ CLEANFILES = Enclave_u.c Enclave_u.h Enclave.edl Enclave.signed.so \
 
 ## The build target
 
-server: sp
+server: provisioning_service
 
-bin_PROGRAMS = client sp mrsigner
+bin_PROGRAMS = client provisioning_service mrsigner
 
 ## You can't use $(wildcard ...) with automake so all source files
 ## have to be explicitly listed.
@@ -94,11 +94,11 @@ BUILT_SOURCES = Enclave_u.c Enclave_u.h
 
 client_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
-## sp
+## provisioning_service
 
-sp_SOURCES = sp.cpp quote_verify.cpp $(common)
+provisioning_service_SOURCES = provisioning_service.cpp quote_verify.cpp $(common)
 BUILT_SOURCES += policy ProvisioningEnclave_u.c ProvisioningEnclave_u.h
-EXTRA_sp_DEPENDENCIES = ProvisioningEnclave.signed.so
+EXTRA_provisioning_service_DEPENDENCIES = ProvisioningEnclave.signed.so
 
 ## mrsigner (helper app)
 
@@ -110,7 +110,7 @@ policy: mrsigner policy.in.h Enclave.signed.so
 	sed -e "s^@MRSIGNER@^`./mrsigner.sh enclave_sigstruct_raw`^" policy.in.h > policy.h
 	rm -f enclave_sigstruct_raw
 
-sp_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
+provisioning_service_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 mrsigner_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
 ## Library flags. At minimum, an Intel SGX application will need:
@@ -130,6 +130,6 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 
 mrsigner_LDADD=-lcrypto
 
-nodist_sp_SOURCES = ProvisioningEnclave_u.c ProvisioningEnclave_u.h
-sp_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
+nodist_provisioning_service_SOURCES = ProvisioningEnclave_u.c ProvisioningEnclave_u.h
+provisioning_service_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
 					-lsgx_usgxssl # SGX SSL
