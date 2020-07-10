@@ -27,7 +27,9 @@ in the License.
 #include <signal.h>
 #include <getopt.h>
 #include <unistd.h>
+#include <sgx_uae_service.h> // attestation key selection
 #include <sgx_key_exchange.h>
+#include <sgx_ukey_exchange.h>
 #include <sgx_report.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -49,12 +51,85 @@ using namespace std;
 
 #define SECRET_PROVISIONING_ENCLAVE "ProvisioningEnclave.signed.so"
 
+
+// Attestation keys (from the Remote attestation sample)
+const uint8_t g_ecdsa_p256_att_key_id_list[] = {
+    0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x8c, 0x4f,
+    0x57, 0x75, 0xd7, 0x96, 0x50, 0x3e, 0x96, 0x13,
+    0x7f, 0x77, 0xc6, 0x8a, 0x82, 0x9a, 0x00, 0x56,
+    0xac, 0x8d, 0xed, 0x70, 0x14, 0x0b, 0x08, 0x1b,
+    0x09, 0x44, 0x90, 0xc5, 0x7b, 0xff, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+const uint8_t g_epid_unlinkable_att_key_id_list[] = {
+    0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0xec, 0x15,
+    0xb1, 0x07, 0x87, 0xd2, 0xf8, 0x46, 0x67, 0xce,
+    0xb0, 0xb5, 0x98, 0xff, 0xc4, 0x4a, 0x1f, 0x1c,
+    0xb8, 0x0f, 0x67, 0x0a, 0xae, 0x5d, 0xf9, 0xe8,
+    0xfa, 0x9f, 0x63, 0x76, 0xe1, 0xf8, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+};
+
 void usage();
 void cleanup_and_exit(int signo);
 
-int process_msg1 (MsgIO *msg, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2);
+int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2);
 
-int process_msg3 (MsgIO *msg, sgx_ra_msg1_t *msg1);
+int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1);
 
 char debug = 0;
 char verbose = 0;
@@ -67,7 +142,6 @@ int main(int argc, char *argv[])
 	char flag_usage = 0;
 	char flag_prod= 0;
 	char flag_stdio= 0;
-	int oops;
 	char *port= NULL;
 	struct sigaction sact;
 
@@ -198,6 +272,175 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+	while ( msgio->server_loop() ) {
+		sgx_status_t status, sgxrv;
+		sgx_ra_msg1_t msg1;
+		sgx_ra_msg2_t *msg2 = NULL;
+		sgx_ra_msg3_t *msg3 = NULL;
+		ra_msg4_t *msg4 = NULL;
+		uint32_t msg3_sz;
+		sgx_ra_context_t ra_ctx = 0xdeadbeef;
+		int rv;
+		int enclaveTrusted = NotTrusted; // Not Trusted
+
+		/* Selection of the attestation key (ECDSA in our case) */
+		sgx_att_key_id_t selected_key_id = {0};
+
+        eprintf("RA initialisation.\n");
+		status = enclave_ra_init(*eid, &sgxrv, &ra_ctx);
+
+		/* Did the ECALL succeed? */
+		if ( status != SGX_SUCCESS || sgxrv != SGX_SUCCESS ) {
+			fprintf(stderr, "enclave_ra_init: %08x\n", sgxrv);
+			goto disconnect1;
+		}
+
+		#ifndef NO_DCAP
+		status = sgx_select_att_key_id(g_ecdsa_p256_att_key_id_list, (uint32_t) sizeof(g_ecdsa_p256_att_key_id_list), &selected_key_id);
+		#else
+		fprintf(stderr, "Running in no DCAP mode (EPID attestation)\n");
+		status = sgx_select_att_key_id(g_epid_unlinkable_att_key_id_list, (uint32_t) sizeof(g_epid_unlinkable_att_key_id_list), &selected_key_id);
+		#endif
+
+	    if(SGX_SUCCESS != status)
+	    {
+			enclave_ra_close(*eid, &sgxrv, ra_ctx);
+	        fprintf(stderr, "\nInfo, call sgx_select_att_key_id fail, current platform configuration doesn't support this attestation key ID. [%s]",
+	                __FUNCTION__);
+			goto disconnect1;
+	    }
+	    fprintf(stderr, "\nCall sgx_select_att_key_id success.");
+
+		/* Generate msg1 */
+
+        eprintf("Creating msg1.\n");
+		status= sgx_ra_get_msg1_ex(&selected_key_id, ra_ctx, *eid, sgx_ra_get_ga, &msg1);
+		if ( status != SGX_SUCCESS ) {
+			enclave_ra_close(*eid, &sgxrv, ra_ctx);
+			fprintf(stderr, "sgx_ra_get_msg1: %08x\n", status);
+			fprintf(fplog, "sgx_ra_get_msg1: %08x\n", status);
+			goto disconnect1;
+		}
+
+		dividerWithText(fplog, "Msg1 ==> SP");
+		fsend_msg(fplog, &msg1, sizeof(msg1));
+		divider(fplog);
+
+		dividerWithText(stderr, "Copy/Paste Msg1 Below to SP");
+        eprintf("Sending msg1.\n");
+		msgio->send(&msg1, sizeof(msg1));
+		divider(stderr);
+
+		fprintf(stderr, "Waiting for msg2\n");
+
+		/* Read msg2
+		 *
+		 * msg2 is variable length b/c it includes the revocation list at
+		 * the end. msg2 is malloc'd in readZ_msg do free it when done.
+		 */
+
+		rv= msgio->read((void **) &msg2, NULL);
+		if ( rv == 0 ) {
+			enclave_ra_close(*eid, &sgxrv, ra_ctx);
+			fprintf(stderr, "protocol error reading msg2\n");
+			goto disconnect1;
+		} else if ( rv == -1 ) {
+			enclave_ra_close(*eid, &sgxrv, ra_ctx);
+			fprintf(stderr, "system error occurred while reading msg2\n");
+			goto disconnect1;
+		}
+
+		/* Process Msg2, Get Msg3  */
+		/* object msg3 is malloc'd by SGX SDK, so remember to free when finished */
+
+		status = sgx_ra_proc_msg2_ex(&selected_key_id, ra_ctx, *eid,
+			sgx_ra_proc_msg2_trusted, sgx_ra_get_msg3_trusted, msg2,
+			sizeof(sgx_ra_msg2_t) + msg2->sig_rl_size,
+		    &msg3, &msg3_sz);
+
+		free(msg2);
+
+		if ( status != SGX_SUCCESS ) {
+			enclave_ra_close(*eid, &sgxrv, ra_ctx);
+			fprintf(stderr, "sgx_ra_proc_msg2: %08x\n", status);
+			fprintf(fplog, "sgx_ra_proc_msg2: %08x\n", status);
+
+			goto disconnect1;
+		}
+
+		dividerWithText(stderr, "Copy/Paste Msg3 Below to SP");
+		msgio->send(msg3, msg3_sz);
+		divider(stderr);
+
+		dividerWithText(fplog, "Msg3 ==> SP");
+		fsend_msg(fplog, msg3, msg3_sz);
+		divider(fplog);
+
+		if ( msg3 ) {
+			free(msg3);
+			msg3 = NULL;
+		}
+
+		/* Read Msg4 provided by Service Provider, then process */
+
+		rv= msgio->read((void **)&msg4, NULL);
+		if ( rv == 0 ) {
+			enclave_ra_close(*eid, &sgxrv, ra_ctx);
+			fprintf(stderr, "protocol error reading msg4\n");
+			goto disconnect1;
+		} else if ( rv == -1 ) {
+			enclave_ra_close(*eid, &sgxrv, ra_ctx);
+			fprintf(stderr, "system error occurred while reading msg4\n");
+			goto disconnect1;
+		}
+
+		edividerWithText("Enclave Trust Status from Service Provider");
+
+		enclaveTrusted= msg4->status;
+		if ( enclaveTrusted == Trusted ) {
+			eprintf("Enclave TRUSTED\n");
+		}
+		else if ( enclaveTrusted == NotTrusted ) {
+			eprintf("Enclave NOT TRUSTED\n");
+		}
+		else if ( enclaveTrusted == Trusted_ItsComplicated ) {
+			// Trusted, but client may be untrusted in the future unless it
+			// takes action.
+
+			eprintf("Enclave Trust is TRUSTED and COMPLICATED. The client is out of date and\nmay not be trusted in the future depending on the service provider's  policy.\n");
+		} else {
+			// Not Trusted, but client may be able to take action to become
+			// trusted.
+
+			eprintf("Enclave Trust is NOT TRUSTED and COMPLICATED. The client is out of date.\n");
+		}
+
+		/*
+		 * If the enclave is trusted, fetch a hash of the the MK and SK from
+		 * the enclave to show proof of a shared secret with the service
+		 * provider.
+		 */
+
+		if ( enclaveTrusted == Trusted ) {
+			sgx_status_t sgx_ret;
+
+			enclave_put_secret(*eid, &sgx_ret, msg4->secret, msg4->secret_size, &msg4->mac, ra_ctx);
+			if (sgx_ret != SGX_SUCCESS) {
+				eprintf("Error decrypting secret: %08x\n", sgx_ret);
+			}
+		}
+
+		free (msg4);
+
+		enclave_ra_close(*eid, &sgxrv, ra_ctx);
+
+		msgio->disconnect();
+		break;
+
+disconnect1:
+		msgio->disconnect();
+	}
+
  	/* If we're running in server mode, we'll block here.  */
 
 	while ( msgio->server_loop() ) {
@@ -304,7 +547,7 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 	sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_status_t process_msg3_ret = SGX_SUCCESS;
 	sgx_ra_msg3_t *msg3;
-	size_t sz;
+    size_t msg3_size;
 	int rv;
 	uint32_t quote_sz;
 	sgx_mac_t vrfymac;
@@ -330,7 +573,7 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 	 *
 	 */
 
-	rv= msgio->read((void **) &msg3, &sz);
+	rv= msgio->read((void **) &msg3, &msg3_size);
 	if ( rv == -1 ) {
 		eprintf("system error reading msg3\n");
 		return 0;
@@ -339,10 +582,9 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 		return 0;
 	}
 	if ( debug ) {
-		eprintf("+++ read %lu bytes\n", sz);
+		eprintf("+++ read %lu bytes\n", msg3_size*2);
 	}
 
-	uint32_t msg3_size = sz/2;
 	uint32_t quote_size = (uint32_t)(msg3_size - sizeof(sgx_ra_msg3_t));
 
 	sgx_ret = ecall_process_msg3(*eid, &process_msg3_ret, msg3, msg3_size);
@@ -352,9 +594,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 	}
 
 	size_t secret_size;
-
-	uint8_t buffer[100];
-
 	sgx_ret = ecall_get_secret_size(*eid, &secret_size);
 	if (sgx_ret != SGX_SUCCESS) {
 		eprintf("Provisioning enclave did not return secret size: %08x\n", sgx_ret);

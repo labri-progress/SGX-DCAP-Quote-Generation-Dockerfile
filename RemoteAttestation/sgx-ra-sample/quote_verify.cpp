@@ -146,5 +146,7 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
         printf("\tInfo: ecall_verify_report successfully returned.\n");
     }
 
+    sgx_qv_free_qve_identity(p_qveid, p_qveid_issue_chain, p_root_ca_crl);
+
     return 0;
 }

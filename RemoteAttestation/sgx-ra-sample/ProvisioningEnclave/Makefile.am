@@ -83,8 +83,10 @@ CLEANFILES+= $(ENCLAVE)_t.c $(ENCLAVE)_t.h
 ## files. You can't use the $(ENCLAVE) variable in the build
 ## target name (i.e., $(ENCLAVE)_SOURCES will not work).
 
-ProvisioningEnclave_SOURCES = ProvisioningEnclave_t.c ProvisioningEnclave_t.h ProvisioningEnclave.cpp ../crypto.c ../crypto.h byteorder.c byteorder.h rsa.cpp rsa.h enclave_verify.cpp enclave_verify.h \
-	$(ENCLAVE_KEY) $(ENCLAVE_CONFIG)
+ProvisioningEnclave_SOURCES = ProvisioningEnclave_t.c ProvisioningEnclave_t.h ProvisioningEnclave.cpp \
+		../common/remote_attestation.cpp ../common/remote_attestation.h ../common/byteorder.c ../common/byteorder.h \
+		../crypto.c ../crypto.h rsa.cpp rsa.h ../common/enclave_verify.cpp ../common/enclave_verify.h \
+		$(ENCLAVE_KEY) $(ENCLAVE_CONFIG)
 
 
 ## Add additional linker flags to AM_LDFLAGS here. Don't put

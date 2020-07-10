@@ -26,6 +26,9 @@ include $(top_srcdir)/build-aux/sgx_app.am
 ##   SGX_UAE_SERVICE_LIB
 ##   SGX_EDGER8R
 
+# Allows to reference files in different directories
+AUTOMAKE_OPTIONS = subdir-objects
+
 SUBDIRS = Enclave ProvisioningEnclave
 
 ## Supply additional flags to edger8r here.
@@ -111,7 +114,6 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 
 
 ## provisioning_service
-
 provisioning_service_SOURCES = provisioning_service.cpp quote_verify.cpp $(common)
 BUILT_SOURCES += policy ProvisioningEnclave_u.c ProvisioningEnclave_u.h
 EXTRA_provisioning_service_DEPENDENCIES = ProvisioningEnclave.signed.so
@@ -119,20 +121,17 @@ EXTRA_provisioning_service_DEPENDENCIES = ProvisioningEnclave.signed.so
 provisioning_service_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 
 nodist_provisioning_service_SOURCES = ProvisioningEnclave_u.c ProvisioningEnclave_u.h
-provisioning_service_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
+provisioning_service_LDADD= -l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
+					-l:libsgx_capable.a -lpthread -ldl \
+					-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
 					-lsgx_usgxssl # SGX SSL
 
 
 ## bootstrap_service
 
-bootstrap_service_SOURCES = bootstrap_service.cpp quote_verify.cpp $(common)
-EXTRA_bootstrap_service_DEPENDENCIES = ProvisioningEnclave.signed.so
-
+bootstrap_service_SOURCES = bootstrap_service.cpp $(common) common/remote_attestation.cpp crypto.c common/byteorder.c common/enclave_verify.cpp
 bootstrap_service_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
-
-nodist_bootstrap_service_SOURCES = ProvisioningEnclave_u.c ProvisioningEnclave_u.h
-bootstrap_service_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -l$(SGX_URTS_LIB) -lcrypto -ldl \
-					-lsgx_usgxssl # SGX SSL
+bootstrap_service_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -lcrypto
 
 
 ## mrsigner (helper app)

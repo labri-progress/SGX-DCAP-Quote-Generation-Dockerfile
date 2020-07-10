@@ -1,7 +1,56 @@
 #include <string.h>
 #include <stdlib.h> // strtol
+#include "sgx_qve_header.h"
 #include "enclave_verify.h"
 #include "../policy.h"
+
+bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t* p_supplemental_data)
+{
+	// Interpret the QVE result
+    time_t tcbLevelDate = p_supplemental_data->tcb_level_date_tag;
+
+    // TODO: improve this
+    // Hardcode the minimal date accepted
+
+	// mktime is not supported inside enclaves so we use a timestamp
+    time_t minTcbLevelDate = 1557878400; // 15 May 2019
+
+    //check verification result
+    //
+    switch (verification_result)
+    {
+    case SGX_QL_QV_RESULT_OK:
+    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
+        // printf("\tInfo: App: Verification completed successfully.\n");
+
+        return true;
+    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
+        // The CPU this was tested on was not up to date... so we adopt a less trict policy
+        // printf("\tInfo: App: CPU out of date (%s). Checking if this is acceptable...", ctime(&tcbLevelDate));
+        // printf(" (min date is %s)\n", ctime(&minTcbLevelDate));
+
+        if (minTcbLevelDate <= tcbLevelDate) {
+            // printf("ok...\n");
+            return true;
+        } else {
+            // printf("too old...\n");
+	        return false;
+        }
+        break;
+    case SGX_QL_QV_RESULT_OUT_OF_DATE:
+    // case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
+    case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
+    case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
+        // printf("\tWarning: App: Verification completed with Non-terminal result: %x\n", p_quote_verification_result);
+        return false;
+    case SGX_QL_QV_RESULT_INVALID_SIGNATURE:
+    case SGX_QL_QV_RESULT_REVOKED:
+    case SGX_QL_QV_RESULT_UNSPECIFIED:
+    default:
+        // printf("\tError: App: Verification completed with Terminal result: %x\n", p_quote_verification_result);
+        return false;
+    }
+}
 
 /*
  * Validate the identity of the enclave.
@@ -35,7 +84,7 @@
  *
  */
 
-bool verify_enclave_identity(sgx_report_body_t *report)
+bool verify_enclave_identity(sgx_report_body_t *report, sgx_prod_id_t prod_id)
 {
 	// Is the enclave compiled in debug mode?
 	#if !ALLOW_DEBUG
@@ -46,7 +95,7 @@ bool verify_enclave_identity(sgx_report_body_t *report)
 	#endif
 
 	// Does the ISV product ID meet the minimum requirement?
-	if ( report->isv_prod_id != SERVICE_PRODID ) {
+	if ( report->isv_prod_id != prod_id ) {
 		// ISV Product Id mismatch
 
 		return false;
@@ -67,9 +116,7 @@ bool verify_enclave_identity(sgx_report_body_t *report)
 		req_mr_signer[i] = strtol(str, NULL, 16);
 	}
 
-	if ( memcmp((const void *) &report->mr_signer,
-		(const void *) req_mr_signer, sizeof(sgx_measurement_t) ) ) {
-
+	if ( memcmp((const void *) &report->mr_signer, (const void *) req_mr_signer, sizeof(sgx_measurement_t) ) ) {
 		// MRSIGNER mismatch
 
 		return false;

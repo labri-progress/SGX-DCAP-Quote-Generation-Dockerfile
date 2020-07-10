@@ -34,6 +34,7 @@
 enclave {
     include "sgx_report.h"
     include "sgx_key_exchange.h"
+  	include "sgx_tkey_exchange.h"
     include "sgx_tcrypto.h"
 
   	from "sgx_tsgxssl.edl" import *;
@@ -44,8 +45,17 @@ enclave {
      *  [*]: implies to import all functions.
      */
 
+   	from "sgx_tkey_exchange.edl" import *;
+
 
     trusted {
+
+    		public sgx_status_t enclave_ra_init([out] sgx_ra_context_t *ctx);
+
+    		public sgx_status_t enclave_put_secret([in, size=secret_size] unsigned char* secret, size_t secret_size, [in] sgx_aes_gcm_128bit_tag_t* mac, sgx_ra_context_t context);
+
+    		public sgx_status_t enclave_ra_close(sgx_ra_context_t ctx);
+
         public void initialize_enclave();
 
         public sgx_status_t ecall_process_msg1(

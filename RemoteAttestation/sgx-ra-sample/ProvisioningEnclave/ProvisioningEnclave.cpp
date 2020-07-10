@@ -33,43 +33,75 @@
 #include <stdarg.h>
 #include <stdio.h> /* vsnprintf */
 #include <string.h>
-#include <sgx_key_exchange.h>
+#include <sgx_tkey_exchange.h>
 #include "sgx_utils.h"
 #include "sgx_tcrypto.h"
 #include "sgx_qve_header.h"
 #include "QuoteVerification.h"
 #include "crypto.h"
 #include "rsa.h"
-#include "byteorder.h"
 #include "time.h"
-#include "enclave_verify.h"
+#include "../common/enclave_verify.h"
+#include "../common/remote_attestation.h"
+#include "../policy.h"
 
-// We're using a ""private"" key to communicate with pods.
-// Pods may actually communicate with an adversary since it is quite easy to fetch this key but security is ensured at a later stage
-// by the attestation of the provisioning service by clients.
-static const unsigned char def_service_private_key[32] = {
-	0x90, 0xe7, 0x6c, 0xbb, 0x2d, 0x52, 0xa1, 0xce,
-	0x3b, 0x66, 0xde, 0x11, 0x43, 0x9c, 0x87, 0xec,
-	0x1f, 0x86, 0x6a, 0x3b, 0x65, 0xb6, 0xae, 0xea,
-	0xad, 0x57, 0x34, 0x53, 0xd1, 0x03, 0x8c, 0x01
+static const sgx_ec256_public_t def_service_public_key = {
+    {
+        0x72, 0x12, 0x8a, 0x7a, 0x17, 0x52, 0x6e, 0xbf,
+        0x85, 0xd0, 0x3a, 0x62, 0x37, 0x30, 0xae, 0xad,
+        0x3e, 0x3d, 0xaa, 0xee, 0x9c, 0x60, 0x73, 0x1d,
+        0xb0, 0x5b, 0xe8, 0x62, 0x1c, 0x4b, 0xeb, 0x38
+    },
+    {
+        0xd4, 0x81, 0x40, 0xd9, 0x50, 0xe2, 0x57, 0x7b,
+        0x26, 0xee, 0xb7, 0x41, 0xe7, 0xc6, 0x14, 0xe2,
+        0x24, 0xb7, 0xbd, 0xc9, 0x03, 0xf2, 0x9a, 0x28,
+        0xa8, 0x3c, 0xc8, 0x10, 0x11, 0x14, 0x5e, 0x06
+    }
+
 };
 
-typedef struct ra_session_struct {
-    uint8_t step;
-    unsigned char g_a[64];
-	unsigned char g_b[64];
-	unsigned char kdk[16];
-	unsigned char smk[16];
-	unsigned char sk[16];
-	unsigned char mk[16];
-	unsigned char vk[16];
-    uint32_t quote_size;
-    uint8_t* quote;
-} ra_session_t;
-
-ra_session_t session = {0};
-
 bool enclave_initialized = false;
+int ra_stage = 0;
+
+// First, we attest the provisioning enclave from the bootstrap service and provide it the Master Key.
+
+sgx_status_t enclave_ra_init(sgx_ra_context_t *ctx)
+{
+	return sgx_ra_init(&def_service_public_key, 0, ctx);
+}
+
+sgx_status_t enclave_put_secret(unsigned char* secret, size_t secret_size, sgx_aes_gcm_128bit_tag_t* mac, sgx_ra_context_t context)
+{
+	sgx_ra_key_128_t k;
+
+	sgx_status_t get_keys_ret = sgx_ra_get_keys(context, SGX_RA_KEY_SK, &k);
+	if ( get_keys_ret != SGX_SUCCESS ) return get_keys_ret;
+
+    unsigned char* cleartext = (unsigned char*) malloc(secret_size);
+    uint8_t aes_gcm_iv[12] = {0};
+    sgx_status_t ret = sgx_rijndael128GCM_decrypt(&k,
+                                     secret,
+                                     secret_size,
+                                     cleartext,
+                                     &aes_gcm_iv[0],
+                                     12,
+                                     NULL,
+                                     0,
+                                     (const sgx_aes_gcm_128bit_tag_t*) mac);
+
+	/* Let's be thorough */
+	memset(k, 0, sizeof(k));
+
+	return ret;
+}
+
+sgx_status_t enclave_ra_close(sgx_ra_context_t ctx)
+{
+        sgx_status_t ret;
+        ret = sgx_ra_close(ctx);
+        return ret;
+}
 
 RSA* key_P1;
 RSA* key_P2;
@@ -92,231 +124,37 @@ void initialize_enclave()
 	enclave_initialized = true;
 }
 
-int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a)
-{
-	unsigned char *Gab_x;
-	size_t slen;
-	EVP_PKEY *Ga;
-	unsigned char cmackey[16];
-
-	memset(cmackey, 0, 16);
-
-	/*
-	 * Compute the shared secret using the peer's public key and a generated
-	 * public/private key.
-	 */
-
-	Ga= key_from_sgx_ec256(&g_a);
-	if ( Ga == NULL ) {
-		crypto_perror("key_from_sgx_ec256");
-		return 0;
-	}
-
-	/* The shared secret in a DH exchange is the x-coordinate of Gab */
-	Gab_x= key_shared_secret(Gb, Ga, &slen);
-	if ( Gab_x == NULL ) {
-		crypto_perror("key_shared_secret");
-		return 0;
-	}
-
-	/* We need it in little endian order, so reverse the bytes. */
-	/* We'll do this in-place. */
-
-	reverse_bytes(Gab_x, Gab_x, slen);
-
-	/* Now hash that to get our KDK (Key Definition Key) */
-
-	/*
-	 * KDK = AES_CMAC(0x00000000000000000000000000000000, secret)
-	 */
-
-	cmac128(cmackey, Gab_x, slen, kdk);
-
-	return 1;
-}
-
 sgx_status_t ecall_process_msg1(sgx_ra_msg1_t msg1, sgx_ra_msg2_t *msg2) {
     // An attestation is already engaged, it should be finished before calling this function
-    if (!enclave_initialized || session.step != 0) {
+    if (!enclave_initialized || ra_stage != 0) {
         return SGX_ERROR_INVALID_STATE;
     }
 
-    if (msg2 == NULL) {
-        return SGX_ERROR_INVALID_PARAMETER;
-    }
 
-	char *buffer= NULL;
-	unsigned char digest[32], r[32], s[32], gb_ga[128];
-	EVP_PKEY *Gb;
-    int rv;
-
-    // Initialize SP session key
-	Gb = key_generate();
-	if ( Gb == NULL ) {
-		// error during the creation of a session key
-        return SGX_ERROR_UNEXPECTED;
+	sgx_status_t ret = process_msg1(msg1, msg2);
+	if (ret == SGX_SUCCESS) {
+		ra_stage = 1;
+	} else {
+		ra_stage = 0;
 	}
 
-    /*
-     * Derive the KDK from the key (Ga) in msg1 and our session key.
-     */
-    if ( ! derive_kdk(Gb, session.kdk, msg1.g_a) ) {
-        // Could not derive the KDK
-        return SGX_ERROR_UNEXPECTED;
-    }
-
-	/*
- 	 * Derive the SMK from the KDK
-	 * SMK = AES_CMAC(KDK, 0x01 || "SMK" || 0x00 || 0x80 || 0x00)
-	 */
-	cmac128(session.kdk, (unsigned char *)("\x01SMK\x00\x80\x00"), 7, session.smk);
-
-	/*
-	 * Build message 2
-	 *
-	 * A || CMACsmk(A) || SigRL
-	 * (148 + 16 + SigRL_length bytes = 164 + SigRL_length bytes)
-	 *
-	 * where:
-	 *
-	 * A      = Gb || SPID || TYPE || KDF-ID || SigSP(Gb, Ga)
-	 *          (64 + 16 + 2 + 2 + 64 = 148 bytes)
-	 * Ga     = Client enclave's session key
-	 *          (32 bytes)
-	 * Gb     = Service Provider's session key
-	 *          (32 bytes)
-	 * SPID   = The Service Provider ID, issued by Intel to the vendor
-	 *          (16 bytes)
-	 * TYPE   = Quote type (0= linkable, 1= linkable)
-	 *          (2 bytes)
-	 * KDF-ID = (0x0001= CMAC entropy extraction and key derivation)
-	 *          (2 bytes)
-	 * SigSP  = ECDSA signature of (Gb.x || Gb.y || Ga.x || Ga.y) as r || s
-	 *          (signed with the Service Provider's private key)
-	 *          (64 bytes)
-	 *
-	 * CMACsmk= AES-128-CMAC(A)
-	 *          (16 bytes)
-	 *
-	 * || denotes concatenation
-	 *
-	 * Note that all key components (Ga.x, etc.) are in little endian
-	 * format, meaning the byte streams need to be reversed.
-	 */
-
-	key_to_sgx_ec256(&msg2->g_b, Gb);
-	msg2->kdf_id= 1;
-
-	memcpy(gb_ga, &msg2->g_b, 64);
-	memcpy(session.g_b, &msg2->g_b, 64);
-
-	memcpy(&gb_ga[64], &msg1.g_a, 64);
-	memcpy(session.g_a, &msg1.g_a, 64);
-
-	ecdsa_sign(gb_ga, 128, key_private_from_bytes(def_service_private_key), r, s, digest);
-	reverse_bytes(&msg2->sign_gb_ga.x, r, 32);
-	reverse_bytes(&msg2->sign_gb_ga.y, s, 32);
-
-	/* The "A" component is conveniently at the start of sgx_ra_msg2_t */
-	cmac128(session.smk, (unsigned char *) msg2, 148, (unsigned char *) &msg2->mac);
-
-    session.step = 1; // move to next stage
-
-    return SGX_SUCCESS;
+	return ret;
 }
 
 sgx_status_t ecall_process_msg3 (sgx_ra_msg3_t *msg3, uint32_t msg3_size)
 {
-    if (session.step != 1) {
+    if (ra_stage != 1) {
         return SGX_ERROR_INVALID_STATE;
     }
 
-    if (msg3 == NULL || msg3_size < sizeof(sgx_ra_msg3_t) + sizeof(sgx_quote_t)) {
-        return SGX_ERROR_INVALID_PARAMETER;
-    }
-
-	size_t sz;
-	int rv;
-	uint32_t quote_size;
-	sgx_mac_t vrfymac;
-	sgx_quote_t *q;
-
-	/*
-	 * The quote size will be the total msg3 size - sizeof(sgx_ra_msg3_t)
-	 * since msg3.quote is a flexible array member.
-	 */
-	quote_size = (uint32_t)(msg3_size - sizeof(sgx_ra_msg3_t));
-
-	/* Make sure Ga matches msg1 */
-	if ( CRYPTO_memcmp(&msg3->g_a, &session.g_a, sizeof(sgx_ec256_public_t)) ) {
-		// msg1.g_a and mgs3.g_a keys don't match
-        session.step = 0;
-
-		return SGX_ERROR_UNEXPECTED;
+	sgx_status_t ret = process_msg3(msg3, msg3_size);
+	if (ret == SGX_SUCCESS) {
+		ra_stage = 2;
+	} else {
+		ra_stage = 0;
 	}
 
-	/* Validate the MAC of M */
-
-	cmac128(session.smk, (unsigned char *) &msg3->g_a,
-		sizeof(sgx_ra_msg3_t)-sizeof(sgx_mac_t)+quote_size,
-		(unsigned char *) vrfymac);
-
-	if ( CRYPTO_memcmp(msg3->mac, vrfymac, sizeof(sgx_mac_t)) ) {
-		// Failed to verify msg3 MAC
-        session.step = 0;
-
-		return SGX_ERROR_MAC_MISMATCH;
-	}
-
-	q = (sgx_quote_t *) msg3->quote;
-
-	unsigned char vfy_rdata[64];
-	unsigned char msg_rdata[144]; /* for Ga || Gb || VK */
-
-	sgx_report_body_t *r= (sgx_report_body_t *) &q->report_body;
-
-	memset(vfy_rdata, 0, 64);
-
-	/*
-	 * Verify that the first 64 bytes of the report data (inside
-	 * the quote) are SHA256(Ga||Gb||VK) || 0x00[32]
-	 *
-	 * VK = CMACkdk( 0x01 || "VK" || 0x00 || 0x80 || 0x00 )
-	 *
-	 * where || denotes concatenation.
-	 */
-
-	/* Derive VK */
-	cmac128(session.kdk, (unsigned char *)("\x01VK\x00\x80\x00"), 6, session.vk);
-
-	/* Build our plaintext */
-	memcpy(msg_rdata, session.g_a, 64);
-	memcpy(&msg_rdata[64], session.g_b, 64);
-	memcpy(&msg_rdata[128], session.vk, 16);
-
-	/* SHA-256 hash */
-	sha256_digest(msg_rdata, 144, vfy_rdata);
-
-	if ( CRYPTO_memcmp((void *) vfy_rdata, (void *) &r->report_data, 64) ) {
-		// Report verification failed
-        session.step = 0;
-		return SGX_ERROR_UNEXPECTED;
-	}
-
-	/*
-	 * Derive the MK and SK.
-	 */
-	cmac128(session.kdk, (unsigned char *)("\x01MK\x00\x80\x00"), 6, session.mk);
-	cmac128(session.kdk, (unsigned char *)("\x01SK\x00\x80\x00"), 6, session.sk);
-
-    session.quote_size = quote_size;
-    session.quote = (uint8_t*) realloc(session.quote, quote_size);
-    memcpy(session.quote, q, quote_size);
-
-    // Message 3 is valid, next step is validating the quote
-    session.step = 2;
-
-	return SGX_SUCCESS;
+	return ret;
 }
 
 // Hardcode Intel Root CA Cert
@@ -345,7 +183,7 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
                                 uint8_t* p_supplemental_data,
                                 uint32_t supplemental_data_size) {
 
-    if (session.step != 2) {
+    if (ra_stage != 2) {
         return SGX_ERROR_INVALID_STATE;
     }
 
@@ -358,6 +196,7 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
         return SGX_ERROR_INVALID_PARAMETER;
     }
 
+	#ifndef NO_DCAP // otherwise, ignore the verification result
     sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
     sgx_status_t ret = SGX_ERROR_UNEXPECTED;
     sgx_sha_state_handle_t sha_handle = NULL;
@@ -383,7 +222,7 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
 
         //quote
         //
-        sgx_status = sgx_sha256_update(session.quote, (uint32_t)session.quote_size, sha_handle);
+        sgx_status = sgx_sha256_update(ra_session.quote, (uint32_t)ra_session.quote_size, sha_handle);
         SGX_ERR_BREAK(sgx_status);
 
         //expiration_check_date
@@ -443,77 +282,27 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
         ret = SGX_SUCCESS;
     } while (0);
 
-	#ifndef NO_DCAP // ignore the verification result
 	// In case the verification of the QVE result fails
 	if (ret != SGX_SUCCESS) {
-    	session.step = 0;
+    	ra_stage = 0;
 		return ret;
 	}
-	#endif
 
-	// Interpret the QVE result
-    time_t tcbLevelDate = ((sgx_ql_qv_supplemental_t*) p_supplemental_data)->tcb_level_date_tag;
+    if (!validate_qve_result(verification_result, p_supplemental_data)) {
+        ra_stage = 0;
 
-    // TODO: improve this
-    // Hardcode the minimal date accepted
-
-	// mktime is not supported inside enclaves so we use a timestamp
-    time_t minTcbLevelDate = 1557878400; // 15 May 2019
-
-    //check verification result
-    //
-    switch (verification_result)
-    {
-    case SGX_QL_QV_RESULT_OK:
-    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
-        // printf("\tInfo: App: Verification completed successfully.\n");
-
-        ret = SGX_SUCCESS;
-        break;
-    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
-        // The CPU this was tested on was not up to date... so we adopt a less trict policy
-        // printf("\tInfo: App: CPU out of date (%s). Checking if this is acceptable...", ctime(&tcbLevelDate));
-        // printf(" (min date is %s)\n", ctime(&minTcbLevelDate));
-
-        if (minTcbLevelDate <= tcbLevelDate) {
-            // printf("ok...\n");
-            ret = SGX_SUCCESS;
-        } else {
-            // printf("too old...\n");
-            ret = SGX_ERROR_UNEXPECTED;
-        }
-        break;
-    case SGX_QL_QV_RESULT_OUT_OF_DATE:
-    // case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
-    case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
-    case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
-        // printf("\tWarning: App: Verification completed with Non-terminal result: %x\n", p_quote_verification_result);
-        ret = SGX_ERROR_UNEXPECTED;
-        break;
-    case SGX_QL_QV_RESULT_INVALID_SIGNATURE:
-    case SGX_QL_QV_RESULT_REVOKED:
-    case SGX_QL_QV_RESULT_UNSPECIFIED:
-    default:
-        // printf("\tError: App: Verification completed with Terminal result: %x\n", p_quote_verification_result);
-        ret = SGX_ERROR_UNEXPECTED;
-        break;
+        return SGX_ERROR_UNEXPECTED;
     }
+    #endif
 
-	#ifndef NO_DCAP // ignore the verification result
-	if (ret != SGX_SUCCESS) {
-		session.step = 0;
-		return ret;
-	}
-	#endif
-
- 	sgx_report_body_t *app_report = (sgx_report_body_t *) &((sgx_quote_t *) session.quote)->report_body;
-	if (!verify_enclave_identity(app_report)) {
+ 	sgx_report_body_t *app_report = (sgx_report_body_t *) &((sgx_quote_t *) ra_session.quote)->report_body;
+	if (!verify_enclave_identity(app_report, SERVICE_PRODID)) {
 		// Enclave does not pass the policy
-		session.step = 0;
+		ra_stage = 0;
 		return SGX_ERROR_UNEXPECTED;
 	}
 
-	session.step = 3;
+	ra_stage = 3;
 
 	return SGX_SUCCESS;
 }
@@ -525,7 +314,7 @@ size_t ecall_get_secret_size() {
 }
 
 sgx_status_t ecall_get_secret(unsigned char* secret_dst, size_t size, sgx_aes_gcm_128bit_tag_t* mac) {
-    if (session.step != 3) {
+    if (ra_stage != 3) {
         return SGX_ERROR_INVALID_STATE;
     }
 
@@ -534,7 +323,7 @@ sgx_status_t ecall_get_secret(unsigned char* secret_dst, size_t size, sgx_aes_gc
 	}
 
     uint8_t aes_gcm_iv[12] = {0};
-    sgx_status_t ret = sgx_rijndael128GCM_encrypt(&session.sk,
+    sgx_status_t ret = sgx_rijndael128GCM_encrypt(&ra_session.sk,
                                      secret,
                                      ecall_get_secret_size(),
                                      secret_dst,
@@ -543,9 +332,9 @@ sgx_status_t ecall_get_secret(unsigned char* secret_dst, size_t size, sgx_aes_gc
                                      NULL,
                                      0,
                                      mac);
- 								 if (ret != SGX_SUCCESS) return ret;
+	if (ret != SGX_SUCCESS) return ret;
 
-	session.step = 0;
+	ra_stage = 0;
 
 	return ret;
 }

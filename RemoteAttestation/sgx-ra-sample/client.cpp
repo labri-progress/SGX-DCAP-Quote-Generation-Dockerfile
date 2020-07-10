@@ -308,7 +308,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 	sgx_ra_context_t ra_ctx= 0xdeadbeef;
 	int rv;
 	MsgIO *msgio;
-	size_t msg4sz = 0;
 	int enclaveTrusted = NotTrusted; // Not Trusted
 
 	if ( config->server == NULL ) {
@@ -550,7 +549,7 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 
 	/* Read Msg4 provided by Service Provider, then process */
 
-	rv= msgio->read((void **)&msg4, &msg4sz);
+	rv= msgio->read((void **)&msg4, NULL);
 	if ( rv == 0 ) {
 		enclave_ra_close(eid, &sgxrv, ra_ctx);
 		fprintf(stderr, "protocol error reading msg4\n");

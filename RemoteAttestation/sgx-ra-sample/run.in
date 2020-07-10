@@ -70,8 +70,7 @@ then
 elif [ "$PROG" = "run-bootstrap" ]
 then
 	./bootstrap_service \
-		-s $SPID \
-		$flag_linkable $flag_debug $flag_verbose $flag_dcap \
+		$flag_debug $flag_verbose $flag_dcap \
 		"$@"
 else
 	echo "$PROG: unrecognized instance (expected run-client, run-provisioning or run-bootstrap)" >&2
