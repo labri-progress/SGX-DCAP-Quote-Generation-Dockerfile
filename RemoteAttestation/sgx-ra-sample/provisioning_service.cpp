@@ -127,8 +127,10 @@ const uint8_t g_epid_unlinkable_att_key_id_list[] = {
 void usage();
 void cleanup_and_exit(int signo);
 
-int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2);
+bool do_initialization(MsgIO* msgio);
 
+void do_provisioning(MsgIO* msgio);
+int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2);
 int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1);
 
 char debug = 0;
@@ -273,222 +275,236 @@ int main(int argc, char *argv[])
     }
 
 	while ( msgio->server_loop() ) {
-		sgx_status_t status, sgxrv;
-		sgx_ra_msg1_t msg1;
-		sgx_ra_msg2_t *msg2 = NULL;
-		sgx_ra_msg3_t *msg3 = NULL;
-		ra_msg4_t *msg4 = NULL;
-		uint32_t msg3_sz;
-		sgx_ra_context_t ra_ctx = 0xdeadbeef;
-		int rv;
-		int enclaveTrusted = NotTrusted; // Not Trusted
-
-		/* Selection of the attestation key (ECDSA in our case) */
-		sgx_att_key_id_t selected_key_id = {0};
-
-        eprintf("RA initialisation.\n");
-		status = enclave_ra_init(*eid, &sgxrv, &ra_ctx);
-
-		/* Did the ECALL succeed? */
-		if ( status != SGX_SUCCESS || sgxrv != SGX_SUCCESS ) {
-			fprintf(stderr, "enclave_ra_init: %08x\n", sgxrv);
-			goto disconnect1;
-		}
-
-		#ifndef NO_DCAP
-		status = sgx_select_att_key_id(g_ecdsa_p256_att_key_id_list, (uint32_t) sizeof(g_ecdsa_p256_att_key_id_list), &selected_key_id);
-		#else
-		fprintf(stderr, "Running in no DCAP mode (EPID attestation)\n");
-		status = sgx_select_att_key_id(g_epid_unlinkable_att_key_id_list, (uint32_t) sizeof(g_epid_unlinkable_att_key_id_list), &selected_key_id);
-		#endif
-
-	    if(SGX_SUCCESS != status)
-	    {
-			enclave_ra_close(*eid, &sgxrv, ra_ctx);
-	        fprintf(stderr, "\nInfo, call sgx_select_att_key_id fail, current platform configuration doesn't support this attestation key ID. [%s]",
-	                __FUNCTION__);
-			goto disconnect1;
-	    }
-	    fprintf(stderr, "\nCall sgx_select_att_key_id success.");
-
-		/* Generate msg1 */
-
-        eprintf("Creating msg1.\n");
-		status= sgx_ra_get_msg1_ex(&selected_key_id, ra_ctx, *eid, sgx_ra_get_ga, &msg1);
-		if ( status != SGX_SUCCESS ) {
-			enclave_ra_close(*eid, &sgxrv, ra_ctx);
-			fprintf(stderr, "sgx_ra_get_msg1: %08x\n", status);
-			fprintf(fplog, "sgx_ra_get_msg1: %08x\n", status);
-			goto disconnect1;
-		}
-
-		dividerWithText(fplog, "Msg1 ==> SP");
-		fsend_msg(fplog, &msg1, sizeof(msg1));
-		divider(fplog);
-
-		dividerWithText(stderr, "Copy/Paste Msg1 Below to SP");
-        eprintf("Sending msg1.\n");
-		msgio->send(&msg1, sizeof(msg1));
-		divider(stderr);
-
-		fprintf(stderr, "Waiting for msg2\n");
-
-		/* Read msg2
-		 *
-		 * msg2 is variable length b/c it includes the revocation list at
-		 * the end. msg2 is malloc'd in readZ_msg do free it when done.
-		 */
-
-		rv= msgio->read((void **) &msg2, NULL);
-		if ( rv == 0 ) {
-			enclave_ra_close(*eid, &sgxrv, ra_ctx);
-			fprintf(stderr, "protocol error reading msg2\n");
-			goto disconnect1;
-		} else if ( rv == -1 ) {
-			enclave_ra_close(*eid, &sgxrv, ra_ctx);
-			fprintf(stderr, "system error occurred while reading msg2\n");
-			goto disconnect1;
-		}
-
-		/* Process Msg2, Get Msg3  */
-		/* object msg3 is malloc'd by SGX SDK, so remember to free when finished */
-
-		status = sgx_ra_proc_msg2_ex(&selected_key_id, ra_ctx, *eid,
-			sgx_ra_proc_msg2_trusted, sgx_ra_get_msg3_trusted, msg2,
-			sizeof(sgx_ra_msg2_t) + msg2->sig_rl_size,
-		    &msg3, &msg3_sz);
-
-		free(msg2);
-
-		if ( status != SGX_SUCCESS ) {
-			enclave_ra_close(*eid, &sgxrv, ra_ctx);
-			fprintf(stderr, "sgx_ra_proc_msg2: %08x\n", status);
-			fprintf(fplog, "sgx_ra_proc_msg2: %08x\n", status);
-
-			goto disconnect1;
-		}
-
-		dividerWithText(stderr, "Copy/Paste Msg3 Below to SP");
-		msgio->send(msg3, msg3_sz);
-		divider(stderr);
-
-		dividerWithText(fplog, "Msg3 ==> SP");
-		fsend_msg(fplog, msg3, msg3_sz);
-		divider(fplog);
-
-		if ( msg3 ) {
-			free(msg3);
-			msg3 = NULL;
-		}
-
-		/* Read Msg4 provided by Service Provider, then process */
-
-		rv= msgio->read((void **)&msg4, NULL);
-		if ( rv == 0 ) {
-			enclave_ra_close(*eid, &sgxrv, ra_ctx);
-			fprintf(stderr, "protocol error reading msg4\n");
-			goto disconnect1;
-		} else if ( rv == -1 ) {
-			enclave_ra_close(*eid, &sgxrv, ra_ctx);
-			fprintf(stderr, "system error occurred while reading msg4\n");
-			goto disconnect1;
-		}
-
-		edividerWithText("Enclave Trust Status from Service Provider");
-
-		enclaveTrusted= msg4->status;
-		if ( enclaveTrusted == Trusted ) {
-			eprintf("Enclave TRUSTED\n");
-		}
-		else if ( enclaveTrusted == NotTrusted ) {
-			eprintf("Enclave NOT TRUSTED\n");
-		}
-		else if ( enclaveTrusted == Trusted_ItsComplicated ) {
-			// Trusted, but client may be untrusted in the future unless it
-			// takes action.
-
-			eprintf("Enclave Trust is TRUSTED and COMPLICATED. The client is out of date and\nmay not be trusted in the future depending on the service provider's  policy.\n");
-		} else {
-			// Not Trusted, but client may be able to take action to become
-			// trusted.
-
-			eprintf("Enclave Trust is NOT TRUSTED and COMPLICATED. The client is out of date.\n");
-		}
-
-		/*
-		 * If the enclave is trusted, fetch a hash of the the MK and SK from
-		 * the enclave to show proof of a shared secret with the service
-		 * provider.
-		 */
-
-		if ( enclaveTrusted == Trusted ) {
-			sgx_status_t sgx_ret;
-
-			enclave_put_secret(*eid, &sgx_ret, msg4->secret, msg4->secret_size, &msg4->mac, ra_ctx);
-			if (sgx_ret != SGX_SUCCESS) {
-				eprintf("Error decrypting secret: %08x\n", sgx_ret);
-			}
-		}
-
-		free (msg4);
-
-		enclave_ra_close(*eid, &sgxrv, ra_ctx);
+		bool result = do_initialization(msgio);
 
 		msgio->disconnect();
-		break;
 
-disconnect1:
-		msgio->disconnect();
+        // In case initialization is sucesfull
+        if (result)
+		      break;
 	}
 
  	/* If we're running in server mode, we'll block here.  */
 
 	while ( msgio->server_loop() ) {
-		sgx_ra_msg1_t msg1;
-		sgx_ra_msg2_t msg2;
+        do_provisioning(msgio);
 
-		/* Read message 0 and 1, then generate message 2 */
-
-		if ( ! process_msg1(msgio, &msg1, &msg2) ) {
-
-			eprintf("error processing msg1\n");
-			goto disconnect;
-		}
-
-		/* Send message 2 */
-
-		/*
-	 	* sgx_ra_msg2_t is a struct with a flexible array member at the
-	 	* end (defined as uint8_t sig_rl[]). We could go to all the
-	 	* trouble of building a byte array large enough to hold the
-	 	* entire struct and then cast it as (sgx_ra_msg2_t) but that's
-	 	* a lot of work for no gain when we can just send the fixed
-	 	* portion and the array portion by hand.
-	 	*/
-
-		dividerWithText(stderr, "Copy/Paste Msg2 Below to Client");
-		dividerWithText(fplog, "Msg2 (send to Client)");
-
-		msgio->send_partial((void *) &msg2, sizeof(sgx_ra_msg2_t));
-		fsend_msg_partial(fplog, (void *) &msg2, sizeof(sgx_ra_msg2_t));
-
-		msgio->send(&msg2.sig_rl, msg2.sig_rl_size);
-		fsend_msg(fplog, &msg2.sig_rl, msg2.sig_rl_size);
-
-		edivider();
-
-		/* Read message 3, and generate message 4 */
-
-		if ( ! process_msg3(msgio, &msg1) ) {
-			eprintf("error processing msg3\n");
-			goto disconnect;
-		}
-
-disconnect:
 		msgio->disconnect();
 	}
 
 	return 0;
+}
+
+bool do_initialization(MsgIO* msgio)
+{
+    sgx_status_t status, sgxrv;
+    sgx_ra_msg1_t msg1;
+    sgx_ra_msg2_t *msg2 = NULL;
+    sgx_ra_msg3_t *msg3 = NULL;
+    ra_msg4_t *msg4 = NULL;
+    uint32_t msg3_sz;
+    sgx_ra_context_t ra_ctx = 0xdeadbeef;
+    int rv;
+    int enclaveTrusted = NotTrusted; // Not Trusted
+
+    /* Selection of the attestation key (ECDSA in our case) */
+    sgx_att_key_id_t selected_key_id = {0};
+
+    eprintf("RA initialisation.\n");
+    status = enclave_ra_init(*eid, &sgxrv, &ra_ctx);
+
+    /* Did the ECALL succeed? */
+    if ( status != SGX_SUCCESS || sgxrv != SGX_SUCCESS ) {
+        fprintf(stderr, "enclave_ra_init: %08x\n", sgxrv);
+
+        return false;
+    }
+
+    #ifndef NO_DCAP
+    status = sgx_select_att_key_id(g_ecdsa_p256_att_key_id_list, (uint32_t) sizeof(g_ecdsa_p256_att_key_id_list), &selected_key_id);
+    #else
+    fprintf(stderr, "Running in no DCAP mode (EPID attestation)\n");
+    status = sgx_select_att_key_id(g_epid_unlinkable_att_key_id_list, (uint32_t) sizeof(g_epid_unlinkable_att_key_id_list), &selected_key_id);
+    #endif
+
+    if(SGX_SUCCESS != status)
+    {
+        enclave_ra_close(*eid, &sgxrv, ra_ctx);
+        fprintf(stderr, "\nInfo, call sgx_select_att_key_id fail, current platform configuration doesn't support this attestation key ID. [%s]",
+                __FUNCTION__);
+
+        return false;
+    }
+    fprintf(stderr, "\nCall sgx_select_att_key_id success.");
+
+    /* Generate msg1 */
+
+    eprintf("Creating msg1.\n");
+    status= sgx_ra_get_msg1_ex(&selected_key_id, ra_ctx, *eid, sgx_ra_get_ga, &msg1);
+    if ( status != SGX_SUCCESS ) {
+        enclave_ra_close(*eid, &sgxrv, ra_ctx);
+        fprintf(stderr, "sgx_ra_get_msg1: %08x\n", status);
+        fprintf(fplog, "sgx_ra_get_msg1: %08x\n", status);
+
+        return false;
+    }
+
+    dividerWithText(fplog, "Msg1 ==> SP");
+    fsend_msg(fplog, &msg1, sizeof(msg1));
+    divider(fplog);
+
+    dividerWithText(stderr, "Copy/Paste Msg1 Below to SP");
+    eprintf("Sending msg1.\n");
+    msgio->send(&msg1, sizeof(msg1));
+    divider(stderr);
+
+    fprintf(stderr, "Waiting for msg2\n");
+
+    /* Read msg2
+     *
+     * msg2 is variable length b/c it includes the revocation list at
+     * the end. msg2 is malloc'd in readZ_msg do free it when done.
+     */
+
+    rv= msgio->read((void **) &msg2, NULL);
+    if ( rv == 0 ) {
+        enclave_ra_close(*eid, &sgxrv, ra_ctx);
+        fprintf(stderr, "protocol error reading msg2\n");
+
+        return false;
+    } else if ( rv == -1 ) {
+        enclave_ra_close(*eid, &sgxrv, ra_ctx);
+        fprintf(stderr, "system error occurred while reading msg2\n");
+
+        return false;
+    }
+
+    /* Process Msg2, Get Msg3  */
+    /* object msg3 is malloc'd by SGX SDK, so remember to free when finished */
+
+    status = sgx_ra_proc_msg2_ex(&selected_key_id, ra_ctx, *eid,
+        sgx_ra_proc_msg2_trusted, sgx_ra_get_msg3_trusted, msg2,
+        sizeof(sgx_ra_msg2_t) + msg2->sig_rl_size,
+        &msg3, &msg3_sz);
+
+    free(msg2);
+
+    if ( status != SGX_SUCCESS ) {
+        enclave_ra_close(*eid, &sgxrv, ra_ctx);
+        fprintf(stderr, "sgx_ra_proc_msg2: %08x\n", status);
+        fprintf(fplog, "sgx_ra_proc_msg2: %08x\n", status);
+
+        return false;
+    }
+
+    dividerWithText(stderr, "Copy/Paste Msg3 Below to SP");
+    msgio->send(msg3, msg3_sz);
+    divider(stderr);
+
+    dividerWithText(fplog, "Msg3 ==> SP");
+    fsend_msg(fplog, msg3, msg3_sz);
+    divider(fplog);
+
+    if ( msg3 ) {
+        free(msg3);
+        msg3 = NULL;
+    }
+
+    /* Read Msg4 provided by Service Provider, then process */
+
+    rv= msgio->read((void **)&msg4, NULL);
+    if ( rv == 0 ) {
+        enclave_ra_close(*eid, &sgxrv, ra_ctx);
+        fprintf(stderr, "protocol error reading msg4\n");
+
+        return false;
+    } else if ( rv == -1 ) {
+        enclave_ra_close(*eid, &sgxrv, ra_ctx);
+        fprintf(stderr, "system error occurred while reading msg4\n");
+
+        return false;
+    }
+
+    edividerWithText("Enclave Trust Status from Service Provider");
+
+    enclaveTrusted= msg4->status;
+    if ( enclaveTrusted == Trusted ) {
+        eprintf("Enclave TRUSTED\n");
+    }
+    else if ( enclaveTrusted == NotTrusted ) {
+        eprintf("Enclave NOT TRUSTED\n");
+    }
+    else if ( enclaveTrusted == Trusted_ItsComplicated ) {
+        // Trusted, but client may be untrusted in the future unless it
+        // takes action.
+
+        eprintf("Enclave Trust is TRUSTED and COMPLICATED. The client is out of date and\nmay not be trusted in the future depending on the service provider's  policy.\n");
+    } else {
+        // Not Trusted, but client may be able to take action to become
+        // trusted.
+
+        eprintf("Enclave Trust is NOT TRUSTED and COMPLICATED. The client is out of date.\n");
+    }
+
+    /*
+     * If the enclave is trusted, fetch a hash of the the MK and SK from
+     * the enclave to show proof of a shared secret with the service
+     * provider.
+     */
+
+    // if ( enclaveTrusted == Trusted ) {
+    // 	sgx_status_t sgx_ret;
+    //
+    // 	enclave_put_secret(*eid, &sgx_ret, msg4->secret, msg4->secret_size, &msg4->mac, ra_ctx);
+    // 	if (sgx_ret != SGX_SUCCESS) {
+    // 		eprintf("Error decrypting secret: %08x\n", sgx_ret);
+    // 	}
+    // }
+
+    free(msg4);
+    enclave_ra_close(*eid, &sgxrv, ra_ctx);
+
+    return true;
+}
+
+void do_provisioning(MsgIO* msgio)
+{
+    sgx_ra_msg1_t msg1;
+    sgx_ra_msg2_t msg2;
+
+    /* Read message 0 and 1, then generate message 2 */
+
+    if ( ! process_msg1(msgio, &msg1, &msg2) ) {
+
+        eprintf("error processing msg1\n");
+        return;
+    }
+
+    /* Send message 2 */
+
+    /*
+    * sgx_ra_msg2_t is a struct with a flexible array member at the
+    * end (defined as uint8_t sig_rl[]). We could go to all the
+    * trouble of building a byte array large enough to hold the
+    * entire struct and then cast it as (sgx_ra_msg2_t) but that's
+    * a lot of work for no gain when we can just send the fixed
+    * portion and the array portion by hand.
+    */
+
+    dividerWithText(stderr, "Copy/Paste Msg2 Below to Client");
+    dividerWithText(fplog, "Msg2 (send to Client)");
+
+    msgio->send_partial((void *) &msg2, sizeof(sgx_ra_msg2_t));
+    fsend_msg_partial(fplog, (void *) &msg2, sizeof(sgx_ra_msg2_t));
+
+    msgio->send(&msg2.sig_rl, msg2.sig_rl_size);
+    fsend_msg(fplog, &msg2.sig_rl, msg2.sig_rl_size);
+
+    edivider();
+
+    /* Read message 3, and generate message 4 */
+
+    process_msg3(msgio, &msg1);
 }
 
 /*
@@ -593,6 +609,17 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 		return 0;
 	}
 
+	if (ecdsa_quote_verification(*eid, (uint8_t*) &msg3->quote, quote_size) != 0) {
+		eprintf("Invalid quote (Verification failed).\n");
+
+        ra_msg4_t msg4 = {};
+		msg4->status = NotTrusted;
+
+        msgio->send((void*) &msg4, sizeof(msg4));
+
+        return 0;
+	}
+
 	size_t secret_size;
 	sgx_ret = ecall_get_secret_size(*eid, &secret_size);
 	if (sgx_ret != SGX_SUCCESS) {
@@ -604,12 +631,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 	memset(msg4, 0, sizeof(ra_msg4_t) + secret_size);
 
 	msg4->status = Trusted;
-	if (ecdsa_quote_verification(*eid, (uint8_t*) &msg3->quote, quote_size) != 0) {
-		eprintf("Invalid quote (Verification failed).\n");
-
-		msg4->status = NotTrusted;
-		goto sendmsg4;
-	}
 
 	/*
 	 * The service provider must validate that the enclave
@@ -662,7 +683,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 	}
 
 
-sendmsg4:
 	edividerWithText("Copy/Paste Msg4 Below to Client");
 
 	/* Serialize the members of the Msg4 structure independently */

@@ -252,15 +252,16 @@ void do_bootstrap(MsgIO *msgio)
 		return;
 	}
 
+	ra_msg4_t msg4 = {};
 	if (!validate_quote(msg3, msg3_size)) {
 		eprintf("Quote validation failed.\n");
-
-		return;
+		msg4.status = NotTrusted;
+	} else {
+		eprintf("Bootstrap succeeded!\n");
+		msg4.status = Trusted;
 	}
 
-	eprintf("Bootstrap succeeded!\n");
-
-
+	msgio->send((void*) &msg4, sizeof(msg4));
 }
 
 bool validate_quote(sgx_ra_msg3_t *msg3, size_t msg3_size)
@@ -270,12 +271,9 @@ bool validate_quote(sgx_ra_msg3_t *msg3, size_t msg3_size)
 	return true;
 	#endif
 
-	int ret = 0;
-	time_t current_time = 0;
 	uint32_t supplemental_data_size = 0;
 	uint8_t *p_supplemental_data = NULL;
 	quote3_error_t qve_ret = SGX_QL_ERROR_UNEXPECTED;
-	quote3_error_t qpl_ret = SGX_QL_ERROR_UNEXPECTED;
 	sgx_ql_qv_result_t p_quote_verification_result = SGX_QL_QV_RESULT_UNSPECIFIED;
 	sgx_ql_qe_report_info_t p_qve_report_info;
 	unsigned char rand_nonce[16] = "59jslk201fgjmm;";
@@ -295,7 +293,7 @@ bool validate_quote(sgx_ra_msg3_t *msg3, size_t msg3_size)
 
 	//set current time. This is only for sample purposes, in production mode a trusted time should be used.
 	//
-	current_time = time(NULL);
+	time_t current_time = time(NULL);
 
 
 	//call DCAP quote verify library for quote verification
