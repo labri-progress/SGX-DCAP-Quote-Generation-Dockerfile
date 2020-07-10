@@ -37,6 +37,7 @@ in the License.
 #include "protocol.h"
 #include "logfile.h"
 
+#include "policy.h"
 #include "sgx_ql_quote.h"
 #include "sgx_dcap_quoteverify.h"
 #include "sgx_qve_header.h"
@@ -253,7 +254,8 @@ void do_bootstrap(MsgIO *msgio)
 	}
 
 	ra_msg4_t msg4 = {};
-	if (!validate_quote(msg3, msg3_size)) {
+	sgx_report_body_t *app_report = (sgx_report_body_t *) &((sgx_quote_t *) ra_session.quote)->report_body;
+	if (!validate_quote(msg3, msg3_size) || !verify_enclave_identity(app_report, PROVISIONING_SERVICE_PRODID)) {
 		eprintf("Quote validation failed.\n");
 		msg4.status = NotTrusted;
 	} else {

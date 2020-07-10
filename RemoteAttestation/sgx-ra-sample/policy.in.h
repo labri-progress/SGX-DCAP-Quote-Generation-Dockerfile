@@ -16,7 +16,7 @@
  // enclave configuration file.
 #define SERVICE_PRODID 0
 
-#define PROVISIONING_SERVICE_PRODID 0
+#define PROVISIONING_SERVICE_PRODID 1
 
 // The ISV software version number (ISV SVN) must be >= this value. This
 // allows service providers to enforce a minimum enclave version to utilize

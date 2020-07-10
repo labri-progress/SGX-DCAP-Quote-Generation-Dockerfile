@@ -464,7 +464,7 @@ bool do_initialization(MsgIO* msgio)
     free(msg4);
     enclave_ra_close(*eid, &sgxrv, ra_ctx);
 
-    return true;
+    return msg4->status == Trusted;
 }
 
 void do_provisioning(MsgIO* msgio)
@@ -613,7 +613,7 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 		eprintf("Invalid quote (Verification failed).\n");
 
         ra_msg4_t msg4 = {};
-		msg4->status = NotTrusted;
+		msg4.status = NotTrusted;
 
         msgio->send((void*) &msg4, sizeof(msg4));
 
