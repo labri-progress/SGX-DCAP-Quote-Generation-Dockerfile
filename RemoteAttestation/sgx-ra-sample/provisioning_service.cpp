@@ -274,18 +274,19 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Let's first wait for the bootstrap service request
 	while ( msgio->server_loop() ) {
+        // try to initialize the service
 		bool result = do_initialization(msgio);
 
 		msgio->disconnect();
 
-        // In case initialization is sucesfull
+        // When the initialization is sucessful
         if (result)
 		      break;
 	}
 
- 	/* If we're running in server mode, we'll block here.  */
-
+ 	// Server mode, loop to process all the requests from both the proxies and the clients
 	while ( msgio->server_loop() ) {
         do_provisioning(msgio);
 
@@ -295,17 +296,19 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+/**
+ * Fetch the private key that will identify the provisioning key from the bootstrap service.
+ */
 bool do_initialization(MsgIO* msgio)
 {
     sgx_status_t status, sgxrv;
     sgx_ra_msg1_t msg1;
     sgx_ra_msg2_t *msg2 = NULL;
     sgx_ra_msg3_t *msg3 = NULL;
-    ra_msg4_t *msg4 = NULL;
+    ra_msg4_t *msg4 = NULL; // will contain the secret
     uint32_t msg3_sz;
-    sgx_ra_context_t ra_ctx = 0xdeadbeef;
+    sgx_ra_context_t ra_ctx;
     int rv;
-    int enclaveTrusted = NotTrusted; // Not Trusted
 
     /* Selection of the attestation key (ECDSA in our case) */
     sgx_att_key_id_t selected_key_id = {0};
@@ -427,14 +430,13 @@ bool do_initialization(MsgIO* msgio)
 
     edividerWithText("Enclave Trust Status from Service Provider");
 
-    enclaveTrusted= msg4->status;
-    if ( enclaveTrusted == Trusted ) {
+    if ( msg4->status == Trusted ) {
         eprintf("Enclave TRUSTED\n");
     }
-    else if ( enclaveTrusted == NotTrusted ) {
+    else if ( msg4->status == NotTrusted ) {
         eprintf("Enclave NOT TRUSTED\n");
     }
-    else if ( enclaveTrusted == Trusted_ItsComplicated ) {
+    else if ( msg4->status == Trusted_ItsComplicated ) {
         // Trusted, but client may be untrusted in the future unless it
         // takes action.
 
@@ -452,7 +454,7 @@ bool do_initialization(MsgIO* msgio)
      * provider.
      */
 
-    // if ( enclaveTrusted == Trusted ) {
+    // if ( msg4->status == Trusted ) {
     // 	sgx_status_t sgx_ret;
     //
     // 	enclave_put_secret(*eid, &sgx_ret, msg4->secret, msg4->secret_size, &msg4->mac, ra_ctx);
@@ -467,6 +469,9 @@ bool do_initialization(MsgIO* msgio)
     return msg4->status == Trusted;
 }
 
+/**
+ * Attest the service and provision it.
+ */
 void do_provisioning(MsgIO* msgio)
 {
     sgx_ra_msg1_t msg1;
@@ -513,11 +518,6 @@ void do_provisioning(MsgIO* msgio)
 int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2)
 {
 	sgx_status_t sgx_ret = SGX_SUCCESS;
-    sgx_status_t process_msg1_ret = SGX_SUCCESS;
-	sgx_ra_msg1_t *msg1_pt;
-	unsigned char digest[32], r[32], s[32], gb_ga[128];
-	EVP_PKEY *Gb;
-	int rv;
 
 	/*
 	 * Read our incoming message. We're using base16 encoding/hex strings
@@ -526,7 +526,8 @@ int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2)
 
 	fprintf(stderr, "Waiting for msg0||msg1\n");
 
-	rv= msgio->read((void **) &msg1_pt, NULL);
+    sgx_ra_msg1_t *msg1_pt;
+	int rv = msgio->read((void **) &msg1_pt, NULL);
 	if ( rv == -1 ) {
 		eprintf("system error reading msg0||msg1\n");
 		return 0;
@@ -538,6 +539,7 @@ int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2)
 	// Pass msg1 back to the pointer in the caller func
 	memcpy(msg1, msg1_pt, sizeof(sgx_ra_msg1_t));
 
+    sgx_status_t process_msg1_ret;
 	sgx_ret = ecall_process_msg1(*eid, &process_msg1_ret, *msg1, msg2);
 	if (sgx_ret != SGX_SUCCESS || process_msg1_ret != SGX_SUCCESS) {
 		eprintf("Provisioning Enclave Error: Msg1 processing failed\n");
@@ -560,16 +562,7 @@ int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2)
 
 int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 {
-	sgx_status_t sgx_ret = SGX_SUCCESS;
-    sgx_status_t process_msg3_ret = SGX_SUCCESS;
-	sgx_ra_msg3_t *msg3;
-    size_t msg3_size;
-	int rv;
-	uint32_t quote_sz;
-	sgx_mac_t vrfymac;
-   	sgx_quote_t* q;
-   	sgx_report_body_t *r;
-	sgx_status_t get_secret_ret = SGX_SUCCESS;
+	sgx_status_t sgx_ret;
 
 	/*
 	 * Read our incoming message. We're using base16 encoding/hex strings
@@ -588,8 +581,10 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 	 * M = ga || PS_SECURITY_PROPERTY || QUOTE
 	 *
 	 */
+ 	sgx_ra_msg3_t *msg3;
+    size_t msg3_size;
 
-	rv= msgio->read((void **) &msg3, &msg3_size);
+	int rv = msgio->read((void **) &msg3, &msg3_size);
 	if ( rv == -1 ) {
 		eprintf("system error reading msg3\n");
 		return 0;
@@ -603,6 +598,7 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 
 	uint32_t quote_size = (uint32_t)(msg3_size - sizeof(sgx_ra_msg3_t));
 
+    sgx_status_t process_msg3_ret = SGX_SUCCESS;
 	sgx_ret = ecall_process_msg3(*eid, &process_msg3_ret, msg3, msg3_size);
 	if (sgx_ret != SGX_SUCCESS || process_msg3_ret != SGX_SUCCESS) {
 		eprintf("Provisioning enclave could not verify message 3: %08x\n", process_msg3_ret);
@@ -647,11 +643,12 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 	 * is compiled.
 	 */
 
-  	q= (sgx_quote_t *) msg3->quote;
- 	r= (sgx_report_body_t *) &q->report_body;
+  	sgx_quote_t *q = (sgx_quote_t *) msg3->quote;
+ 	sgx_report_body_t *r = (sgx_report_body_t *) &q->report_body;
 
 	msg4->secret_size = secret_size;
 
+    sgx_status_t get_secret_ret;
 	sgx_ret = ecall_get_secret(*eid, &get_secret_ret, msg4->secret, msg4->secret_size, &msg4->mac);
 	if (sgx_ret != SGX_SUCCESS || get_secret_ret != SGX_SUCCESS) {
 		eprintf("Provisioning enclave did not return secret: %08x\n", get_secret_ret);

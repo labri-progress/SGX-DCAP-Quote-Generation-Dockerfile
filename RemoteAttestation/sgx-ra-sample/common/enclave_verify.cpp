@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdlib.h> // strtol
+#include "sgx_ql_quote.h"
 #include "sgx_qve_header.h"
 #include "enclave_verify.h"
 #include "../policy.h"

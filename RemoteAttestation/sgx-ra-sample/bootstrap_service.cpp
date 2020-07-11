@@ -245,7 +245,6 @@ void do_bootstrap(MsgIO *msgio)
 	msgio->read((void **) &msg3, &msg3_size);
 
 	status = process_msg3(msg3, msg3_size);
-	free(msg3);
 
 	if (SGX_SUCCESS != status) {
 		eprintf("Error while processing msg3: %08x\n", status);
@@ -262,6 +261,8 @@ void do_bootstrap(MsgIO *msgio)
 		eprintf("Bootstrap succeeded!\n");
 		msg4.status = Trusted;
 	}
+	
+	free(msg3);
 
 	msgio->send((void*) &msg4, sizeof(msg4));
 }
@@ -277,8 +278,6 @@ bool validate_quote(sgx_ra_msg3_t *msg3, size_t msg3_size)
 	uint8_t *p_supplemental_data = NULL;
 	quote3_error_t qve_ret = SGX_QL_ERROR_UNEXPECTED;
 	sgx_ql_qv_result_t p_quote_verification_result = SGX_QL_QV_RESULT_UNSPECIFIED;
-	sgx_ql_qe_report_info_t p_qve_report_info;
-	unsigned char rand_nonce[16] = "59jslk201fgjmm;";
 	uint32_t p_collateral_expiration_status = 1;
 
 	//call DCAP quote verify library to get supplemental data size

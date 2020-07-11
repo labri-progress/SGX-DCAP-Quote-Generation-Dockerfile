@@ -288,7 +288,7 @@ sgx_status_t ecall_verify_report(uint8_t* p_report,
 		return ret;
 	}
 
-    if (!validate_qve_result(verification_result, p_supplemental_data)) {
+    if (!validate_qve_result(verification_result, (sgx_ql_qv_supplemental_t*) p_supplemental_data)) {
         ra_stage = 0;
 
         return SGX_ERROR_UNEXPECTED;

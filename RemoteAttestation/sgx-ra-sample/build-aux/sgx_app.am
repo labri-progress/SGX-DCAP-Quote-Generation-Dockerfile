@@ -28,6 +28,10 @@ if !DCAP
 AM_CPPFLAGS += -D NO_DCAP
 endif
 
+if !DCAP
+AM_CPPFLAGS += -D NO_DCAP
+endif
+
 ## These libraries exist in both hardware and simulation (_sim) form,
 ## so they need to be listed as Makefile variables.
 

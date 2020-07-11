@@ -2,6 +2,7 @@
 #define _ENCLAVE_VERIFY_H
 
 #include <sgx_report.h>
+#include <sgx_qve_header.h>
 
 bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t* p_supplemental_data);
 
