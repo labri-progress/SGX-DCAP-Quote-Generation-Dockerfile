@@ -58,14 +58,12 @@ int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a)
 
 	Ga= key_from_sgx_ec256(&g_a);
 	if ( Ga == NULL ) {
-		crypto_perror("key_from_sgx_ec256");
 		return 0;
 	}
 
 	/* The shared secret in a DH exchange is the x-coordinate of Gab */
 	Gab_x= key_shared_secret(Gb, Ga, &slen);
 	if ( Gab_x == NULL ) {
-		crypto_perror("key_shared_secret");
 		return 0;
 	}
 
@@ -85,7 +83,7 @@ int derive_kdk(EVP_PKEY *Gb, unsigned char kdk[16], sgx_ec256_public_t g_a)
 	return 1;
 }
 
-sgx_status_t process_msg1(sgx_ra_msg1_t msg1, sgx_ra_msg2_t *msg2) {
+sgx_status_t process_msg1(sgx_ra_msg1_t msg1, sgx_ra_msg2_t *msg2, EVP_PKEY *service_private_key) {
     if (msg2 == NULL) {
         return SGX_ERROR_INVALID_PARAMETER;
     }
@@ -158,7 +156,7 @@ sgx_status_t process_msg1(sgx_ra_msg1_t msg1, sgx_ra_msg2_t *msg2) {
 	memcpy(&gb_ga[64], &msg1.g_a, 64);
 	memcpy(ra_session.g_a, &msg1.g_a, 64);
 
-	ecdsa_sign(gb_ga, 128, key_private_from_bytes(def_service_private_key), r, s, digest);
+	ecdsa_sign(gb_ga, 128, service_private_key, r, s, digest);
 	reverse_bytes(&msg2->sign_gb_ga.x, r, 32);
 	reverse_bytes(&msg2->sign_gb_ga.y, s, 32);
 

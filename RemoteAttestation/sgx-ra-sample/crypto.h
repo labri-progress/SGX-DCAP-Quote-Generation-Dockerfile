@@ -30,8 +30,10 @@ in the License.
 extern "C" {
 #endif
 
-/* General */
-void crypto_perror (const char *prefix);
+/*  AES-GCM  */
+sgx_status_t sgx_aes_gcm_encrypt(const sgx_aes_gcm_128bit_key_t *p_key, const uint8_t *p_src, uint32_t src_len,
+										uint8_t *p_dst, const uint8_t *p_iv, uint32_t iv_len, const uint8_t *p_aad, uint32_t aad_len,
+										sgx_aes_gcm_128bit_tag_t *p_out_mac);
 
 /*  AES-CMAC */
 
@@ -40,11 +42,9 @@ int cmac128(unsigned char key[16], unsigned char *message, size_t mlen,
 
 /* EC key operations */
 
-// int key_load_file (EVP_PKEY **key, const char *filename, int type);
-// int key_load (EVP_PKEY **key, const char *hexstring, int type);
+EVP_PKEY* key_load (const unsigned char *hexstring, int keytype);
 
 EVP_PKEY *key_from_sgx_ec256 (sgx_ec256_public_t *k);
-EVP_PKEY *key_private_from_bytes (const unsigned char buf[32]);
 int key_to_sgx_ec256 (sgx_ec256_public_t *k, EVP_PKEY *key);
 
 unsigned char *key_shared_secret (EVP_PKEY *key, EVP_PKEY *peerkey, size_t *slen);
@@ -53,11 +53,6 @@ EVP_PKEY *key_generate();
 /* SHA256 */
 
 int sha256_digest(const unsigned char *msg, size_t mlen, unsigned char digest[32]);
-
-/* HMAC */
-
-int sha256_verify(const unsigned char *msg, size_t mlen, unsigned char *sig,
-	size_t sigsz, EVP_PKEY *pkey, int *result);
 
 /* ECDSA signature */
 

@@ -39,184 +39,27 @@ static enum _error_type {
 
 static const char *ep= NULL;
 
-/* Print the error */
-
-void crypto_perror (const char *prefix)
-{
-	// fprintf(stderr, "%s: ", prefix);
-	// if ( error_type == e_none ) fprintf(stderr, "no error\n");
-	// else if ( error_type == e_system ) perror(ep);
-	// else if ( error_type == e_crypto ) ERR_print_errors_fp(stderr);
-	// else if ( error_type == e_api ) fprintf(stderr, "invalid parameter\n");
-	// else fprintf(stderr, "unknown error\n");
-}
-
 /*==========================================================================
  * EC key functions
  *========================================================================== */
 //
 // /* Load an EC key from a file in PEM format */
 //
-// int key_load (EVP_PKEY **pkey, const char *hexstring, int keytype)
-// {
-// 	EC_KEY *eckey= NULL;
-// 	BIGNUM *gx= NULL;
-// 	BIGNUM *gy= NULL;
-// 	size_t slen, reqlen;
-//
-// 	error_type= e_none;
-//
-// 	/* Make sure we were sent a proper hex string for a key */
-// 	if ( hexstring == NULL ) {
-// 		error_type= e_api;
-// 		return 0;
-// 	}
-//
-// 	slen= strlen(hexstring);
-// 	if ( keytype == KEY_PRIVATE ) reqlen=64;
-// 	else if ( keytype == KEY_PUBLIC ) reqlen= 128;
-// 	else {
-// 		error_type= e_api;
-// 		return 0;
-// 	}
-// 	if ( slen != reqlen ) {
-// 		error_type= e_api;
-// 		return 0;
-// 	}
-//
-// 	eckey= EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-// 	if ( eckey == NULL ) {
-// 		error_type= e_crypto;
-// 		goto cleanup;
-// 	}
-//
-// 	if ( keytype == KEY_PRIVATE ) {
-// 		EC_POINT *pubpt= NULL;
-// 		const EC_GROUP *group= NULL;
-// 		BN_CTX *ctx;
-//
-// 		ctx= BN_CTX_new();
-//
-// 		/* hexstring is the private key; we'll use gx even though that's
-// 		 * not technically what it is. :)  */
-//
-// 		if ( ! BN_hex2bn(&gx, hexstring) ) {
-// 			error_type= e_crypto;
-// 			goto cleanup;
-// 		}
-//
-// 		if ( ! EC_KEY_set_private_key(eckey, gx) ) {
-// 			error_type= e_crypto;
-// 			goto cleanup;
-// 		}
-//
-// 		/* Set the public key from the private key */
-//
-// 		group= EC_KEY_get0_group(eckey);
-//
-// 		pubpt= EC_POINT_new(group);
-// 		if ( pubpt == NULL ) {
-// 			BN_CTX_free(ctx);
-// 			error_type= e_crypto;
-// 			goto cleanup;
-// 		}
-//
-// 		if ( ! EC_POINT_mul(group, pubpt, gx, NULL, NULL,
-// 			NULL) ) {
-//
-// 			BN_CTX_free(ctx);
-// 			EC_POINT_free(pubpt);
-//
-// 			error_type= e_crypto;
-// 			goto cleanup;
-// 		}
-//
-// 		BN_CTX_free(ctx);
-//
-// 		if ( ! EC_KEY_set_public_key(eckey, pubpt) ) {
-// 			EC_POINT_free(pubpt);
-//
-// 			EC_POINT_free(pubpt);
-//
-// 			error_type= e_crypto;
-// 			goto cleanup;
-// 		}
-//
-// 		EC_POINT_free(pubpt);
-// 	} else if ( keytype == KEY_PUBLIC ) {
-// 		/*
-// 		 * hex2bn expects a NULL terminated string, so need to
-// 		 * pull out the x component
-// 		 */
-//
-// 		char cx[65];
-//
-// 		memcpy(cx, hexstring, 64);
-// 		cx[64]= 0;
-//
-// 		if ( ! BN_hex2bn(&gx, cx) ) {
-// 			error_type= e_crypto;
-// 			goto cleanup;
-// 		}
-//
-// 		if ( ! BN_hex2bn(&gy, &hexstring[64]) ) {
-// 			error_type= e_crypto;
-// 			goto cleanup;
-// 		}
-//
-// 		if ( ! EC_KEY_set_public_key_affine_coordinates(eckey, gx, gy) ) {
-// 			error_type= e_crypto;
-// 			goto cleanup;
-// 		}
-//
-// 	} else {
-// 		error_type= e_api;
-// 		goto cleanup;
-// 	}
-//
-// 	*pkey= EVP_PKEY_new();
-// 	if ( *pkey == NULL ) {
-// 		error_type= e_crypto;
-// 		goto cleanup;
-// 	}
-//
-// 	if ( ! EVP_PKEY_set1_EC_KEY(*pkey, eckey) ) {
-// 		error_type= e_crypto;
-// 		*pkey= NULL;
-// 	}
-//
-// cleanup:
-// 	if ( gy != NULL ) BN_free(gy);
-// 	if ( gx != NULL ) BN_free(gx);
-// 	/* if ( eckey != NULL ) EC_KEY_free(eckey); */
-//
-// 	return (error_type == e_none);
-// }
-//
-// int key_load_file (EVP_PKEY **key, const char *filename, int keytype)
-// {
-// 	FILE *fp;
-//
-// 	error_type= e_none;
-//
-// 	*key= EVP_PKEY_new();
-//
-// 	if ( (fp= fopen(filename, "r")) == NULL ) {
-// 		error_type= e_system;
-// 		ep= filename;
-// 		return 0;
-// 	}
-//
-// 	if ( keytype == KEY_PRIVATE ) PEM_read_PrivateKey(fp, key, NULL, NULL);
-// 	else if ( keytype == KEY_PUBLIC ) PEM_read_PUBKEY(fp, key, NULL, NULL);
-// 	else {
-// 		error_type= e_api;
-// 	}
-//
-// 	fclose(fp);
-//
-// 	return (error_type == e_none);
-// }
+
+EVP_PKEY* key_load (const unsigned char *key, int keytype) {
+	BIO *bio_buffer;
+	bio_buffer = BIO_new_mem_buf((void *) key, -1);
+	if (bio_buffer == NULL) {
+		// Failed to create BIO of key
+		return 0;
+	}
+
+	EVP_PKEY *ec_key = EVP_PKEY_new();
+	ec_key = keytype == KEY_PUBLIC ? PEM_read_bio_PUBKEY(bio_buffer, NULL, 0, NULL) : PEM_read_bio_PrivateKey(bio_buffer, NULL, 0, NULL);
+	BIO_free_all(bio_buffer);
+
+	return ec_key;
+}
 
 int key_to_sgx_ec256 (sgx_ec256_public_t *k, EVP_PKEY *key)
 {
@@ -274,51 +117,6 @@ cleanup:
 	if ( gx != NULL ) BN_free(gx);
 	if ( ecgroup != NULL ) EC_GROUP_free(ecgroup);
 	return (error_type == e_none);
-}
-
-EVP_PKEY *key_private_from_bytes (const unsigned char buf[32])
-{
-
-	EC_KEY *key= NULL;
-	EVP_PKEY *pkey= NULL;
-	BIGNUM *prv= NULL;
-
-	error_type= e_none;
-
-	key= EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-	if ( key == NULL ) {
-		error_type= e_crypto;
-		goto cleanup;
-	}
-
-	if ( (prv= BN_lebin2bn((unsigned char *) buf, 32, NULL)) == NULL) {
-		error_type= e_crypto;
-		goto cleanup;
-	}
-
-
-	if ( ! EC_KEY_set_private_key(key, prv) ) {
-		error_type= e_crypto;
-		goto cleanup;
-	}
-
-	pkey= EVP_PKEY_new();
-	if ( pkey == NULL ) {
-		error_type= e_crypto;
-		goto cleanup;
-	}
-
-	if ( ! EVP_PKEY_set1_EC_KEY(pkey, key) ) {
-		error_type= e_crypto;
-		EVP_PKEY_free(pkey);
-		pkey= NULL;
-	}
-
-cleanup:
-	if ( prv != NULL ) BN_free(prv);
-	if ( key != NULL ) EC_KEY_free(key);
-
-	return pkey;
 }
 
 EVP_PKEY *key_from_sgx_ec256 (sgx_ec256_public_t *k)
@@ -494,6 +292,74 @@ cleanup:
 }
 
 /*==========================================================================
+ * AES-GCM
+ *========================================================================== */
+
+sgx_status_t sgx_aes_gcm_encrypt(const sgx_aes_gcm_128bit_key_t *p_key, const uint8_t *p_src, uint32_t src_len,
+                                         uint8_t *p_dst, const uint8_t *p_iv, uint32_t iv_len, const uint8_t *p_aad, uint32_t aad_len,
+                                         sgx_aes_gcm_128bit_tag_t *p_out_mac)
+{
+ 	if ((src_len >= INT_MAX) || (aad_len >= INT_MAX) || (p_key == NULL) || ((src_len > 0) && (p_dst == NULL)) || ((src_len > 0) && (p_src == NULL))
+ 		|| (p_out_mac == NULL) || (iv_len != SGX_AESGCM_IV_SIZE) || ((aad_len > 0) && (p_aad == NULL))
+ 		|| (p_iv == NULL) || ((p_src == NULL) && (p_aad == NULL)))
+ 	{
+ 		return SGX_ERROR_INVALID_PARAMETER;
+ 	}
+ 	sgx_status_t ret = SGX_ERROR_UNEXPECTED;
+ 	int len = 0;
+ 	EVP_CIPHER_CTX * pState = NULL;
+
+ 	do {
+ 		// Create and init ctx
+ 		//
+ 		if (!(pState = EVP_CIPHER_CTX_new())) {
+ 			ret = SGX_ERROR_OUT_OF_MEMORY;
+ 			break;
+ 		}
+
+ 		// Initialise encrypt, key and IV
+ 		//
+ 		if (1 != EVP_EncryptInit_ex(pState, EVP_aes_128_gcm(), NULL, (unsigned char*)p_key, p_iv)) {
+ 			break;
+ 		}
+
+ 		// Provide AAD data if exist
+ 		//
+ 		if (NULL != p_aad) {
+ 			if (1 != EVP_EncryptUpdate(pState, NULL, &len, p_aad, aad_len)) {
+ 				break;
+ 			}
+ 		}
+         if (src_len > 0) {
+             // Provide the message to be encrypted, and obtain the encrypted output.
+             //
+             if (1 != EVP_EncryptUpdate(pState, p_dst, &len, p_src, src_len)) {
+                 break;
+             }
+         }
+ 		// Finalise the encryption
+ 		//
+ 		if (1 != EVP_EncryptFinal_ex(pState, p_dst + len, &len)) {
+ 			break;
+ 		}
+
+ 		// Get tag
+ 		//
+ 		if (1 != EVP_CIPHER_CTX_ctrl(pState, EVP_CTRL_GCM_GET_TAG, SGX_AESGCM_MAC_SIZE, p_out_mac)) {
+ 			break;
+ 		}
+ 		ret = SGX_SUCCESS;
+ 	} while (0);
+
+ 	// Clean up and return
+ 	//
+ 	if (pState) {
+ 			EVP_CIPHER_CTX_free(pState);
+ 	}
+	return ret;
+}
+
+/*==========================================================================
  * AES-CMAC
  *========================================================================== */
 
@@ -564,41 +430,6 @@ cleanup:
 	if ( ctx != NULL ) EVP_MD_CTX_destroy(ctx);
 	return ( error_type == e_none );
 }
-
-/*==========================================================================
- * HMAC
- *========================================================================== */
-
-int sha256_verify(const unsigned char *msg, size_t mlen, unsigned char *sig,
-    size_t sigsz, EVP_PKEY *pkey, int *result)
-{
-	EVP_MD_CTX *ctx;
-
-	error_type= e_none;
-
-	ctx= EVP_MD_CTX_new();
-	if ( ctx == NULL ) {
-		error_type= e_crypto;
-		goto cleanup;
-	}
-
-	if ( EVP_DigestVerifyInit(ctx, NULL, EVP_sha256(), NULL, pkey) != 1 ) {
-		error_type= e_crypto;
-		goto cleanup;
-	}
-
-	if ( EVP_DigestVerifyUpdate(ctx, msg, mlen) != 1 ) {
-		error_type= e_crypto;
-		goto cleanup;
-	}
-
-	if ( EVP_DigestVerifyFinal(ctx, sig, sigsz) != 1 ) error_type= e_crypto;
-
-cleanup:
-	if ( ctx != NULL ) EVP_MD_CTX_free(ctx);
-	return (error_type == e_none);
-}
-
 
 /*==========================================================================
  * ECDSA

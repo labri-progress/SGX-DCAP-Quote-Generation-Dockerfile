@@ -41,9 +41,14 @@ in the License.
 #include "sgx_ql_quote.h"
 #include "sgx_dcap_quoteverify.h"
 #include "sgx_qve_header.h"
+#include "sgx_tcrypto.h" // in order to use `sgx_rijndael128GCM_encrypt`
 
+#include "crypto.h"
 #include "common/remote_attestation.h"
 #include "common/enclave_verify.h"
+
+#include "keys/bootstrap_private.h" // This key is used to attest the bootstrap service when contacting the Provisioning Service
+#include "keys/provisioning_private.h"
 
 using namespace std;
 
@@ -92,8 +97,8 @@ int main(int argc, char *argv[])
 
 	/* Create a logfile to capture debug output and actual msg data */
 
-	fplog = create_logfile("provisioning_service.log");
-	fprintf(fplog, "Provisioning Service log started\n");
+	fplog = create_logfile("bootstrap_service.log");
+	fprintf(fplog, "Bootstrap Service log started\n");
 
 	/* Parse our options */
 
@@ -173,8 +178,7 @@ int main(int argc, char *argv[])
 		msgio = new MsgIO();
 	} else {
 		try {
-			msgio = new MsgIO(config.server, (config.port == NULL) ?
-				DEFAULT_PORT : config.port);
+			msgio = new MsgIO(config.server, (config.port == NULL) ? DEFAULT_PORT : config.port);
 		}
 		catch(...) {
 			exit(1);
@@ -204,6 +208,10 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
+/**
+ * Calls the Provisioning Service and tries to attest it.
+ * If the attestation is sucessful, provide it the private key it will use to communicate with the micro services and the clients.
+ */
 void do_bootstrap(MsgIO *msgio)
 {
 	sgx_ra_msg1_t *msg1;
@@ -225,7 +233,16 @@ void do_bootstrap(MsgIO *msgio)
 
 		return;
 	}
-	if (SGX_SUCCESS != process_msg1(*msg1, &msg2)) {
+
+	// Let's load the bootstrap private key
+    EVP_PKEY *bootstrap_private_key = key_load(bootstrap_private_pem, KEY_PRIVATE);
+    if (bootstrap_private_key == NULL) {
+		eprintf("Bootstrap private key loading failed.\n");
+
+        return;
+    }
+
+	if (SGX_SUCCESS != process_msg1(*msg1, &msg2, bootstrap_private_key)) {
 		eprintf("Error while processing msg1.\n");
 
 		return;
@@ -252,19 +269,44 @@ void do_bootstrap(MsgIO *msgio)
 		return;
 	}
 
-	ra_msg4_t msg4 = {};
 	sgx_report_body_t *app_report = (sgx_report_body_t *) &((sgx_quote_t *) ra_session.quote)->report_body;
 	if (!validate_quote(msg3, msg3_size) || !verify_enclave_identity(app_report, PROVISIONING_SERVICE_PRODID)) {
 		eprintf("Quote validation failed.\n");
-		msg4.status = NotTrusted;
-	} else {
-		eprintf("Bootstrap succeeded!\n");
-		msg4.status = Trusted;
-	}
-	
-	free(msg3);
+		ra_msg4_t msg4 = { NotTrusted };
 
-	msgio->send((void*) &msg4, sizeof(msg4));
+		free(msg3);
+
+		msgio->send((void*) &msg4, sizeof(msg4));
+
+		return;
+	}
+
+	size_t msg4_size = sizeof(ra_msg4_t) + provisioning_private_pem_len;
+	ra_msg4_t *msg4 = (ra_msg4_t*) malloc(msg4_size);
+	memset(msg4, 0, msg4_size);
+
+	eprintf("Bootstrap succeeded!\n");
+	msg4->status = Trusted;
+	msg4->secret_size = provisioning_private_pem_len;
+
+    uint8_t aes_gcm_iv[12] = {0};
+    sgx_status_t ret = sgx_aes_gcm_encrypt(&ra_session.sk,
+                                     provisioning_private_pem,
+                                     msg4->secret_size,
+                                     msg4->secret,
+                                     &aes_gcm_iv[0],
+                                     12,
+                                     NULL,
+                                     0,
+                                     &msg4->mac);
+	if (ret != SGX_SUCCESS) {
+		eprintf("Error while encrypting Provisioning secret. Aborting.\n");
+
+		return;
+	}
+
+	msgio->send_partial((void *) msg4, sizeof(ra_msg4_t));
+	msgio->send((void*) msg4->secret, msg4->secret_size);
 }
 
 bool validate_quote(sgx_ra_msg3_t *msg3, size_t msg3_size)

@@ -58,7 +58,7 @@ SGX_EDGER8R_FLAGS=--search-path ..
 
 ENCLAVE=ProvisioningEnclave
 ENCLAVE_CONFIG=$(ENCLAVE).config.xml
-ENCLAVE_KEY=$(ENCLAVE)_private.pem
+ENCLAVE_KEY=../keys/enclave_signing_private.pem
 
 
 ## Additional Automake flags needed to build the enclave.

@@ -27,7 +27,7 @@ typedef struct ra_session_struct {
 
 extern ra_session_t ra_session;
 
-sgx_status_t process_msg1(sgx_ra_msg1_t msg1, sgx_ra_msg2_t *msg2);
+sgx_status_t process_msg1(sgx_ra_msg1_t msg1, sgx_ra_msg2_t *msg2, EVP_PKEY *service_private_key);
 sgx_status_t process_msg3(sgx_ra_msg3_t *msg3, uint32_t msg3_size);
 
 #endif

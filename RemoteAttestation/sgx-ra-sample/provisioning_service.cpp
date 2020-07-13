@@ -127,7 +127,7 @@ const uint8_t g_epid_unlinkable_att_key_id_list[] = {
 void usage();
 void cleanup_and_exit(int signo);
 
-bool do_initialization(MsgIO* msgio);
+bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_context);
 
 void do_provisioning(MsgIO* msgio);
 int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2);
@@ -277,7 +277,20 @@ int main(int argc, char *argv[])
     // Let's first wait for the bootstrap service request
 	while ( msgio->server_loop() ) {
         // try to initialize the service
-		bool result = do_initialization(msgio);
+        sgx_status_t status, sgxrv;
+        sgx_ra_context_t ra_ctx;
+        eprintf("RA initialisation.\n");
+        status = enclave_ra_init(*eid, &sgxrv, &ra_ctx);
+        if ( status != SGX_SUCCESS || sgxrv != SGX_SUCCESS ) {
+            fprintf(stderr, "enclave_ra_init: %08x\n", sgxrv);
+
+    		msgio->disconnect();
+            continue;
+        }
+
+		bool result = do_initialization(msgio, ra_ctx);
+
+        enclave_ra_close(*eid, &sgxrv, ra_ctx);
 
 		msgio->disconnect();
 
@@ -301,7 +314,7 @@ int main(int argc, char *argv[])
 /**
  * Fetch the private key that will identify the provisioning key from the bootstrap service.
  */
-bool do_initialization(MsgIO* msgio)
+bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
 {
     sgx_status_t status, sgxrv;
     sgx_ra_msg1_t msg1;
@@ -309,21 +322,12 @@ bool do_initialization(MsgIO* msgio)
     sgx_ra_msg3_t *msg3 = NULL;
     ra_msg4_t *msg4 = NULL; // will contain the secret
     uint32_t msg3_sz;
-    sgx_ra_context_t ra_ctx;
     int rv;
 
     /* Selection of the attestation key (ECDSA in our case) */
     sgx_att_key_id_t selected_key_id = {0};
 
-    eprintf("RA initialisation.\n");
-    status = enclave_ra_init(*eid, &sgxrv, &ra_ctx);
-
     /* Did the ECALL succeed? */
-    if ( status != SGX_SUCCESS || sgxrv != SGX_SUCCESS ) {
-        fprintf(stderr, "enclave_ra_init: %08x\n", sgxrv);
-
-        return false;
-    }
 
     #ifndef NO_DCAP
     status = sgx_select_att_key_id(g_ecdsa_p256_att_key_id_list, (uint32_t) sizeof(g_ecdsa_p256_att_key_id_list), &selected_key_id);
@@ -334,7 +338,6 @@ bool do_initialization(MsgIO* msgio)
 
     if(SGX_SUCCESS != status)
     {
-        enclave_ra_close(*eid, &sgxrv, ra_ctx);
         fprintf(stderr, "\nInfo, call sgx_select_att_key_id fail, current platform configuration doesn't support this attestation key ID. [%s]",
                 __FUNCTION__);
 
@@ -347,7 +350,6 @@ bool do_initialization(MsgIO* msgio)
     eprintf("Creating msg1.\n");
     status= sgx_ra_get_msg1_ex(&selected_key_id, ra_ctx, *eid, sgx_ra_get_ga, &msg1);
     if ( status != SGX_SUCCESS ) {
-        enclave_ra_close(*eid, &sgxrv, ra_ctx);
         fprintf(stderr, "sgx_ra_get_msg1: %08x\n", status);
         fprintf(fplog, "sgx_ra_get_msg1: %08x\n", status);
 
@@ -373,12 +375,10 @@ bool do_initialization(MsgIO* msgio)
 
     rv= msgio->read((void **) &msg2, NULL);
     if ( rv == 0 ) {
-        enclave_ra_close(*eid, &sgxrv, ra_ctx);
         fprintf(stderr, "protocol error reading msg2\n");
 
         return false;
     } else if ( rv == -1 ) {
-        enclave_ra_close(*eid, &sgxrv, ra_ctx);
         fprintf(stderr, "system error occurred while reading msg2\n");
 
         return false;
@@ -395,7 +395,6 @@ bool do_initialization(MsgIO* msgio)
     free(msg2);
 
     if ( status != SGX_SUCCESS ) {
-        enclave_ra_close(*eid, &sgxrv, ra_ctx);
         fprintf(stderr, "sgx_ra_proc_msg2: %08x\n", status);
         fprintf(fplog, "sgx_ra_proc_msg2: %08x\n", status);
 
@@ -419,12 +418,10 @@ bool do_initialization(MsgIO* msgio)
 
     rv= msgio->read((void **)&msg4, NULL);
     if ( rv == 0 ) {
-        enclave_ra_close(*eid, &sgxrv, ra_ctx);
         fprintf(stderr, "protocol error reading msg4\n");
 
         return false;
     } else if ( rv == -1 ) {
-        enclave_ra_close(*eid, &sgxrv, ra_ctx);
         fprintf(stderr, "system error occurred while reading msg4\n");
 
         return false;
@@ -450,27 +447,29 @@ bool do_initialization(MsgIO* msgio)
         eprintf("Enclave Trust is NOT TRUSTED and COMPLICATED. The client is out of date.\n");
     }
 
+    if (msg4->status != Trusted) {
+        return false;
+    }
+
     /*
      * If the enclave is trusted, fetch a hash of the the MK and SK from
      * the enclave to show proof of a shared secret with the service
      * provider.
      */
 
-    // if ( msg4->status == Trusted ) {
-    // 	sgx_status_t sgx_ret;
-    //
-    // 	enclave_put_secret(*eid, &sgx_ret, msg4->secret, msg4->secret_size, &msg4->mac, ra_ctx);
-    // 	if (sgx_ret != SGX_SUCCESS) {
-    // 		eprintf("Error decrypting secret: %08x\n", sgx_ret);
-    // 	}
-    // }
+	sgx_status_t sgx_ret;
 
-    bool ret = msg4->status == Trusted;
+	enclave_put_secret(*eid, &sgx_ret, msg4->secret, msg4->secret_size, &msg4->mac, ra_ctx);
 
     free(msg4);
-    enclave_ra_close(*eid, &sgxrv, ra_ctx);
 
-    return ret;
+	if (sgx_ret != SGX_SUCCESS) {
+		eprintf("Error decrypting secret: %08x\n", sgx_ret);
+
+        return false;
+	}
+
+    return true;
 }
 
 /**

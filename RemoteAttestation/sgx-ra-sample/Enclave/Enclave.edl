@@ -22,6 +22,8 @@ enclave {
 	include "sgx_utils.h"
 	include "sgx_tkey_exchange.h"
 
+	from "sgx_tsgxssl.edl" import *;
+
 	from "sgx_tkey_exchange.edl" import *;
 
 	trusted {

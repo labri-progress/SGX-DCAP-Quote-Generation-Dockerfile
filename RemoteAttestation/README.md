@@ -5,6 +5,7 @@ This sample demonstrates DCAP Remote Attestation.
 It is an adaptation to DCAP of [intel/sgx-ra-sample](https://github.com/intel/sgx-ra-sample).
 
 A Dockerfile is provided that allows to easily launch the different components of the sample:
+- `./build_and_run_bootstrap_service.sh` launches the bootstrap service that initializes the provisioning service.
 - `./build_and_run_provisioning_service.sh` launches the server that listens to Remote Attestation requests.
 - `./build_and_run_aesm.sh` launches the AESM services used by the client (manage the generation of the quote)
 - `./build_and_run_client.sh` launches the client that sends a request to the server to be remotely attested.
@@ -28,6 +29,15 @@ You also need to install and configure the cache server (PCCS).
 
   Enter your API key when asked.
 
+Secrets Generation
+------------------
+
+You may regenerate the keys used to sign enclaves, to communicate between the services, etc. by running `make` in the `sgx-ra-sample/keys` subdirectory.
 
 Usage
 -----
+
+1. First, launch the AESM services using `./build_and_run_aesm.sh`.
+2. Launch the Provisioning service: `./build_and_run_provisioning_service.sh`.
+3. Initialize it with the Bootstrap service: `./build_and_run_bootstrap_service`.
+4. Then launch as many app services as wanted: `./build_and_run_client`.
