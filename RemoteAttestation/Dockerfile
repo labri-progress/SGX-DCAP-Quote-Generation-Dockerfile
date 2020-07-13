@@ -33,12 +33,17 @@ RUN apt-get install -y libsgx-dcap-ql-dev libsgx-uae-service libsgx-dcap-default
 RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
 
 WORKDIR /var/app/
+RUN wget https://download.01.org/intel-sgx/sgx-linux/2.10/as.ld.objdump.gold.r2.tar.gz
+RUN tar -xf as.ld.objdump.gold.r2.tar.gz
+RUN bash -c "cp external/toolset/ubuntu18.04/{as,ld,ld.gold,objdump} /usr/local/bin"
+RUN which as ld ld.gold objdump
+
 RUN git clone https://github.com/intel/intel-sgx-ssl.git
 ADD https://www.openssl.org/source/openssl-1.1.1g.tar.gz ./intel-sgx-ssl/openssl_source/openssl-1.1.1g.tar.gz
 
 WORKDIR /var/app/intel-sgx-ssl/Linux
 RUN git checkout lin_2.10_1.1.1g
-RUN /bin/bash -c 'make -C sgx/ && make install'
+RUN /bin/bash -c 'make && make install'
 
 
 # AESM services
@@ -60,7 +65,7 @@ COPY ./sgx-ra-sample .
 COPY ./SGXDataCenterAttestationPrimitives/SampleCode/QuoteVerificationSample/prebuilt prebuilt
 
 RUN ./bootstrap
-RUN ./configure --disable-dcap
+RUN ./configure # --disable-dcap
 RUN make
 RUN chmod 777 .
 

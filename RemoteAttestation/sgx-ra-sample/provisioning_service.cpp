@@ -286,6 +286,8 @@ int main(int argc, char *argv[])
 		      break;
 	}
 
+    printf("Initialization done. Passing to requests processing.\n\n");
+
  	// Server mode, loop to process all the requests from both the proxies and the clients
 	while ( msgio->server_loop() ) {
         do_provisioning(msgio);
@@ -463,10 +465,12 @@ bool do_initialization(MsgIO* msgio)
     // 	}
     // }
 
+    bool ret = msg4->status == Trusted;
+
     free(msg4);
     enclave_ra_close(*eid, &sgxrv, ra_ctx);
 
-    return msg4->status == Trusted;
+    return ret;
 }
 
 /**
