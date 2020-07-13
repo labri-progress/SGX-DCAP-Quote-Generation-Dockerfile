@@ -141,125 +141,124 @@ sgx_enclave_id_t *eid;
 
 int main(int argc, char *argv[])
 {
-	char flag_usage = 0;
-	char flag_prod= 0;
-	char flag_stdio= 0;
-	char *port= NULL;
-	struct sigaction sact;
+    char flag_usage = 0;
+    char flag_prod= 0;
+    char flag_stdio= 0;
+    char *port= NULL;
+    struct sigaction sact;
 
-	/* Command line options */
+    /* Command line options */
 
-	static struct option long_opt[] =
-	{
-		{"production",				no_argument,		0, 'P'},
-		{"debug",					no_argument,		0, 'd'},
-		{"help",					no_argument, 		0, 'h'},
-		{"verbose",					no_argument,		0, 'v'},
-		{"stdio",					no_argument,		0, 'z'},
-		{ 0, 0, 0, 0 }
-	};
+    static struct option long_opt[] =
+    {
+        {"production",				no_argument,		0, 'P'},
+        {"debug",					no_argument,		0, 'd'},
+        {"help",					no_argument, 		0, 'h'},
+        {"verbose",					no_argument,		0, 'v'},
+        {"stdio",					no_argument,		0, 'z'},
+        { 0, 0, 0, 0 }
+    };
 
-	/* Create a logfile to capture debug output and actual msg data */
+    /* Create a logfile to capture debug output and actual msg data */
 
-	fplog = create_logfile("provisioning_service.log");
-	fprintf(fplog, "Provisioning Service log started\n");
+    fplog = create_logfile("provisioning_service.log");
+    fprintf(fplog, "Provisioning Service log started\n");
 
-	/* Parse our options */
+    /* Parse our options */
 
-	while (1) {
-		int c;
-		int opt_index = 0;
-		int ret = 0;
-		char *eptr= NULL;
-		unsigned long val;
+    while (1) {
+        int c;
+        int opt_index = 0;
+        int ret = 0;
+        char *eptr= NULL;
+        unsigned long val;
 
-		c = getopt_long(argc, argv,
-			"Pdhvz",
-			long_opt, &opt_index);
-		if (c == -1) break;
+        c = getopt_long(argc, argv, "Pdhvz", long_opt, &opt_index);
 
-		switch (c) {
+        if (c == -1) break;
 
-		case 0:
-			break;
+        switch (c) {
+
+            case 0:
+            break;
 
 
-        case 'P':
-			flag_prod = 1;
-			break;
+            case 'P':
+            flag_prod = 1;
+            break;
 
-		case 'd':
-			debug = 1;
-			break;
+            case 'd':
+            debug = 1;
+            break;
 
-		case 'v':
-			verbose = 1;
-			break;
+            case 'v':
+            verbose = 1;
+            break;
 
-		case 'z':
-			flag_stdio= 1;
-			break;
+            case 'z':
+            flag_stdio= 1;
+            break;
 
-		case 'h':
-		case '?':
-		default:
-			usage();
-		}
-	}
+            case 'h':
+            case '?':
+            default:
+            usage();
+        }
+    }
 
-	/* We should have zero or one command-line argument remaining */
+    /* We should have zero or one command-line argument remaining */
 
-	argc-= optind;
-	if ( argc > 1 ) usage();
+    argc-= optind;
+    if ( argc > 1 ) usage();
 
-	/* The remaining argument, if present, is the port number. */
+    /* The remaining argument, if present, is the port number. */
 
-	if ( flag_stdio && argc ) {
-		usage();
-	} else if ( argc ) {
-		port= argv[optind];
-	} else {
-		port= strdup(DEFAULT_PORT);
-		if ( port == NULL ) {
-			perror("strdup");
-			return 1;
-		}
-	}
+    if ( flag_stdio && argc ) {
+        usage();
+    } else if ( argc ) {
+        port= argv[optind];
+    } else {
+        port= strdup(DEFAULT_PORT);
+        if ( port == NULL ) {
+            perror("strdup");
+            return 1;
+        }
+    }
 
-	if (flag_usage) usage();
+    if (flag_usage) usage();
 
-	/* Get our message IO object. */
+    /* Get our message IO object. */
 
-	if ( flag_stdio ) {
-		msgio= new MsgIO();
-	} else {
-		try {
-			msgio= new MsgIO(NULL, (port == NULL) ? DEFAULT_PORT : port);
-		}
-		catch(...) {
-			return 1;
-		}
-	}
-	/*
-	 * Install some rudimentary signal handlers. We just want to make
-	 * sure we gracefully shutdown the listen socket before we exit
-	 * to avoid "address already in use" errors on startup.
-	 */
+    if ( flag_stdio ) {
+        msgio= new MsgIO();
+    } else {
+        try {
+            msgio= new MsgIO(NULL, (port == NULL) ? DEFAULT_PORT : port);
+        }
+        catch(...) {
+            return 1;
+        }
+    }
+    /*
+    * Install some rudimentary signal handlers. We just want to make
+    * sure we gracefully shutdown the listen socket before we exit
+    * to avoid "address already in use" errors on startup.
+    */
 
-	sigemptyset(&sact.sa_mask);
-	sact.sa_flags= 0;
-	sact.sa_handler= &cleanup_and_exit;
+    sigemptyset(&sact.sa_mask);
+    sact.sa_flags= 0;
+    sact.sa_handler= &cleanup_and_exit;
 
-	if ( sigaction(SIGHUP, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
-	if ( sigaction(SIGINT, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
-	if ( sigaction(SIGTERM, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
-	if ( sigaction(SIGQUIT, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
+    if ( sigaction(SIGHUP, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
+    if ( sigaction(SIGINT, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
+    if ( sigaction(SIGTERM, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
+    if ( sigaction(SIGQUIT, &sact, NULL) == -1 ) perror("sigaction: SIGHUP");
 
-	sgx_status_t sgx_ret = SGX_SUCCESS;
+    sgx_status_t sgx_ret = SGX_SUCCESS;
     int updated = 0;
     sgx_launch_token_t token = { 0 };
 
-	// Start provisioning enclave
+    // Start provisioning enclave
     eid = (sgx_enclave_id_t*) malloc(sizeof(sgx_enclave_id_t));
     sgx_ret = sgx_create_enclave(SECRET_PROVISIONING_ENCLAVE, SGX_DEBUG_FLAG, &token, &updated, eid, NULL);
     if (sgx_ret != SGX_SUCCESS) {
@@ -267,15 +266,15 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-	// initialize provisioning keys
-	sgx_ret = initialize_enclave(*eid);
+    // initialize provisioning keys
+    sgx_ret = initialize_enclave(*eid);
     if (sgx_ret != SGX_SUCCESS) {
         eprintf("\tError: Could not initialize Secret Provisioning Enclave. 0x%04x\n", sgx_ret);
         return 1;
     }
 
     // Let's first wait for the bootstrap service request
-	while ( msgio->server_loop() ) {
+    while ( msgio->server_loop() ) {
         // try to initialize the service
         sgx_status_t status, sgxrv;
         sgx_ra_context_t ra_ctx;
@@ -284,36 +283,36 @@ int main(int argc, char *argv[])
         if ( status != SGX_SUCCESS || sgxrv != SGX_SUCCESS ) {
             fprintf(stderr, "enclave_ra_init: %08x\n", sgxrv);
 
-    		msgio->disconnect();
+            msgio->disconnect();
             continue;
         }
 
-		bool result = do_initialization(msgio, ra_ctx);
+        bool result = do_initialization(msgio, ra_ctx);
 
         enclave_ra_close(*eid, &sgxrv, ra_ctx);
 
-		msgio->disconnect();
+        msgio->disconnect();
 
         // When the initialization is sucessful
         if (result)
-		      break;
-	}
+        break;
+    }
 
     printf("Initialization done. Passing to requests processing.\n\n");
 
- 	// Server mode, loop to process all the requests from both the proxies and the clients
-	while ( msgio->server_loop() ) {
+    // Server mode, loop to process all the requests from both the proxies and the clients
+    while ( msgio->server_loop() ) {
         do_provisioning(msgio);
 
-		msgio->disconnect();
-	}
+        msgio->disconnect();
+    }
 
-	return 0;
+    return 0;
 }
 
 /**
- * Fetch the private key that will identify the provisioning key from the bootstrap service.
- */
+* Fetch the private key that will identify the provisioning key from the bootstrap service.
+*/
 bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
 {
     sgx_status_t status, sgxrv;
@@ -339,7 +338,7 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
     if(SGX_SUCCESS != status)
     {
         fprintf(stderr, "\nInfo, call sgx_select_att_key_id fail, current platform configuration doesn't support this attestation key ID. [%s]",
-                __FUNCTION__);
+        __FUNCTION__);
 
         return false;
     }
@@ -368,10 +367,10 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
     fprintf(stderr, "Waiting for msg2\n");
 
     /* Read msg2
-     *
-     * msg2 is variable length b/c it includes the revocation list at
-     * the end. msg2 is malloc'd in readZ_msg do free it when done.
-     */
+    *
+    * msg2 is variable length b/c it includes the revocation list at
+    * the end. msg2 is malloc'd in readZ_msg do free it when done.
+    */
 
     rv= msgio->read((void **) &msg2, NULL);
     if ( rv == 0 ) {
@@ -390,7 +389,8 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
     status = sgx_ra_proc_msg2_ex(&selected_key_id, ra_ctx, *eid,
         sgx_ra_proc_msg2_trusted, sgx_ra_get_msg3_trusted, msg2,
         sizeof(sgx_ra_msg2_t) + msg2->sig_rl_size,
-        &msg3, &msg3_sz);
+        &msg3, &msg3_sz
+    );
 
     free(msg2);
 
@@ -452,29 +452,29 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
     }
 
     /*
-     * If the enclave is trusted, fetch a hash of the the MK and SK from
-     * the enclave to show proof of a shared secret with the service
-     * provider.
-     */
+    * If the enclave is trusted, fetch a hash of the the MK and SK from
+    * the enclave to show proof of a shared secret with the service
+    * provider.
+    */
 
-	sgx_status_t sgx_ret;
+    sgx_status_t sgx_ret;
 
-	enclave_put_secret(*eid, &sgx_ret, msg4->secret, msg4->secret_size, &msg4->mac, ra_ctx);
+    enclave_put_secret(*eid, &sgx_ret, msg4->secret, msg4->secret_size, &msg4->mac, ra_ctx);
 
     free(msg4);
 
-	if (sgx_ret != SGX_SUCCESS) {
-		eprintf("Error decrypting secret: %08x\n", sgx_ret);
+    if (sgx_ret != SGX_SUCCESS) {
+        eprintf("Error decrypting secret: %08x\n", sgx_ret);
 
         return false;
-	}
+    }
 
     return true;
 }
 
 /**
- * Attest the service and provision it.
- */
+* Attest the service and provision it.
+*/
 void do_provisioning(MsgIO* msgio)
 {
     sgx_ra_msg1_t msg1;
@@ -516,213 +516,213 @@ void do_provisioning(MsgIO* msgio)
 }
 
 /*
- * Read and process message 1.
- */
+* Read and process message 1.
+*/
 int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2)
 {
-	sgx_status_t sgx_ret = SGX_SUCCESS;
+    sgx_status_t sgx_ret = SGX_SUCCESS;
 
-	/*
-	 * Read our incoming message. We're using base16 encoding/hex strings
-	 * so we should end up with sizeof(msg)*2 bytes.
-	 */
+    /*
+    * Read our incoming message. We're using base16 encoding/hex strings
+    * so we should end up with sizeof(msg)*2 bytes.
+    */
 
-	fprintf(stderr, "Waiting for msg0||msg1\n");
+    fprintf(stderr, "Waiting for msg0||msg1\n");
 
     sgx_ra_msg1_t *msg1_pt;
-	int rv = msgio->read((void **) &msg1_pt, NULL);
-	if ( rv == -1 ) {
-		eprintf("system error reading msg0||msg1\n");
-		return 0;
-	} else if ( rv == 0 ) {
-		eprintf("protocol error reading msg0||msg1\n");
-		return 0;
-	}
+    int rv = msgio->read((void **) &msg1_pt, NULL);
+    if ( rv == -1 ) {
+        eprintf("system error reading msg0||msg1\n");
+        return 0;
+    } else if ( rv == 0 ) {
+        eprintf("protocol error reading msg0||msg1\n");
+        return 0;
+    }
 
-	// Pass msg1 back to the pointer in the caller func
-	memcpy(msg1, msg1_pt, sizeof(sgx_ra_msg1_t));
+    // Pass msg1 back to the pointer in the caller func
+    memcpy(msg1, msg1_pt, sizeof(sgx_ra_msg1_t));
 
     sgx_status_t process_msg1_ret;
-	sgx_ret = ecall_process_msg1(*eid, &process_msg1_ret, *msg1, msg2);
-	if (sgx_ret != SGX_SUCCESS || process_msg1_ret != SGX_SUCCESS) {
-		eprintf("Provisioning Enclave Error: Msg1 processing failed\n");
-		return 0;
-	}
+    sgx_ret = ecall_process_msg1(*eid, &process_msg1_ret, *msg1, msg2);
+    if (sgx_ret != SGX_SUCCESS || process_msg1_ret != SGX_SUCCESS) {
+        eprintf("Provisioning Enclave Error: Msg1 processing failed\n");
+        return 0;
+    }
 
-	if ( verbose ) {
-		edividerWithText("Msg1 Details (from Client)");
-		eprintf("msg1.g_a.gx = %s\n",
-			hexstring(&msg1->g_a.gx, sizeof(msg1->g_a.gx)));
-		eprintf("msg1.g_a.gy = %s\n",
-			hexstring(&msg1->g_a.gy, sizeof(msg1->g_a.gy)));
-		eprintf("msg1.gid    = %s\n",
-			hexstring( &msg1->gid, sizeof(msg1->gid)));
-		edivider();
-	}
+    if ( verbose ) {
+        edividerWithText("Msg1 Details (from Client)");
+        eprintf("msg1.g_a.gx = %s\n",
+        hexstring(&msg1->g_a.gx, sizeof(msg1->g_a.gx)));
+        eprintf("msg1.g_a.gy = %s\n",
+        hexstring(&msg1->g_a.gy, sizeof(msg1->g_a.gy)));
+        eprintf("msg1.gid    = %s\n",
+        hexstring( &msg1->gid, sizeof(msg1->gid)));
+        edivider();
+    }
 
-	return 1;
+    return 1;
 }
 
 int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 {
-	sgx_status_t sgx_ret;
+    sgx_status_t sgx_ret;
 
-	/*
-	 * Read our incoming message. We're using base16 encoding/hex strings
-	 * so we should end up with sizeof(msg)*2 bytes.
-	 */
+    /*
+    * Read our incoming message. We're using base16 encoding/hex strings
+    * so we should end up with sizeof(msg)*2 bytes.
+    */
 
-	fprintf(stderr, "Waiting for msg3\n");
+    fprintf(stderr, "Waiting for msg3\n");
 
-	/*
-	 * Read message 3
-	 *
-	 * CMACsmk(M) || M
-	 *
-	 * where
-	 *
-	 * M = ga || PS_SECURITY_PROPERTY || QUOTE
-	 *
-	 */
- 	sgx_ra_msg3_t *msg3;
+    /*
+    * Read message 3
+    *
+    * CMACsmk(M) || M
+    *
+    * where
+    *
+    * M = ga || PS_SECURITY_PROPERTY || QUOTE
+    *
+    */
+    sgx_ra_msg3_t *msg3;
     size_t msg3_size;
 
-	int rv = msgio->read((void **) &msg3, &msg3_size);
-	if ( rv == -1 ) {
-		eprintf("system error reading msg3\n");
-		return 0;
-	} else if ( rv == 0 ) {
-		eprintf("protocol error reading msg3\n");
-		return 0;
-	}
-	if ( debug ) {
-		eprintf("+++ read %lu bytes\n", msg3_size*2);
-	}
+    int rv = msgio->read((void **) &msg3, &msg3_size);
+    if ( rv == -1 ) {
+        eprintf("system error reading msg3\n");
+        return 0;
+    } else if ( rv == 0 ) {
+        eprintf("protocol error reading msg3\n");
+        return 0;
+    }
+    if ( debug ) {
+        eprintf("+++ read %lu bytes\n", msg3_size*2);
+    }
 
-	uint32_t quote_size = (uint32_t)(msg3_size - sizeof(sgx_ra_msg3_t));
+    uint32_t quote_size = (uint32_t)(msg3_size - sizeof(sgx_ra_msg3_t));
 
     sgx_status_t process_msg3_ret = SGX_SUCCESS;
-	sgx_ret = ecall_process_msg3(*eid, &process_msg3_ret, msg3, msg3_size);
-	if (sgx_ret != SGX_SUCCESS || process_msg3_ret != SGX_SUCCESS) {
-		eprintf("Provisioning enclave could not verify message 3: %08x\n", process_msg3_ret);
-		return 0;
-	}
+    sgx_ret = ecall_process_msg3(*eid, &process_msg3_ret, msg3, msg3_size);
+    if (sgx_ret != SGX_SUCCESS || process_msg3_ret != SGX_SUCCESS) {
+        eprintf("Provisioning enclave could not verify message 3: %08x\n", process_msg3_ret);
+        return 0;
+    }
 
-	if (ecdsa_quote_verification(*eid, (uint8_t*) &msg3->quote, quote_size) != 0) {
-		eprintf("Invalid quote (Verification failed).\n");
+    if (ecdsa_quote_verification(*eid, (uint8_t*) &msg3->quote, quote_size) != 0) {
+        eprintf("Invalid quote (Verification failed).\n");
 
         ra_msg4_t msg4 = {};
-		msg4.status = NotTrusted;
+        msg4.status = NotTrusted;
 
         msgio->send((void*) &msg4, sizeof(msg4));
 
         return 0;
-	}
+    }
 
-	size_t secret_size;
-	sgx_ret = ecall_get_secret_size(*eid, &secret_size);
-	if (sgx_ret != SGX_SUCCESS) {
-		eprintf("Provisioning enclave did not return secret size: %08x\n", sgx_ret);
-		return 0;
-	}
+    size_t secret_size;
+    sgx_ret = ecall_get_secret_size(*eid, &secret_size);
+    if (sgx_ret != SGX_SUCCESS) {
+        eprintf("Provisioning enclave did not return secret size: %08x\n", sgx_ret);
+        return 0;
+    }
 
-	ra_msg4_t *msg4 = (ra_msg4_t*) malloc(sizeof(ra_msg4_t) + secret_size);
-	memset(msg4, 0, sizeof(ra_msg4_t) + secret_size);
+    ra_msg4_t *msg4 = (ra_msg4_t*) malloc(sizeof(ra_msg4_t) + secret_size);
+    memset(msg4, 0, sizeof(ra_msg4_t) + secret_size);
 
-	msg4->status = Trusted;
+    msg4->status = Trusted;
 
-	/*
-	 * The service provider must validate that the enclave
-	 * report is from an enclave that they recognize. Namely,
-	 * that the MRSIGNER matches our signing key, and the MRENCLAVE
-	 * hash matches an enclave that we compiled.
-	 *
-	 * Other policy decisions might include examining ISV_SVN to
-	 * prevent outdated/deprecated software from successfully
-	 * attesting, and ensuring the TCB is not out of date.
-	 *
-	 * A real-world service provider might allow multiple ISV_SVN
-	 * values, but for this sample we only allow the enclave that
-	 * is compiled.
-	 */
+    /*
+    * The service provider must validate that the enclave
+    * report is from an enclave that they recognize. Namely,
+    * that the MRSIGNER matches our signing key, and the MRENCLAVE
+    * hash matches an enclave that we compiled.
+    *
+    * Other policy decisions might include examining ISV_SVN to
+    * prevent outdated/deprecated software from successfully
+    * attesting, and ensuring the TCB is not out of date.
+    *
+    * A real-world service provider might allow multiple ISV_SVN
+    * values, but for this sample we only allow the enclave that
+    * is compiled.
+    */
 
-  	sgx_quote_t *q = (sgx_quote_t *) msg3->quote;
- 	sgx_report_body_t *r = (sgx_report_body_t *) &q->report_body;
+    sgx_quote_t *q = (sgx_quote_t *) msg3->quote;
+    sgx_report_body_t *r = (sgx_report_body_t *) &q->report_body;
 
-	msg4->secret_size = secret_size;
+    msg4->secret_size = secret_size;
 
     sgx_status_t get_secret_ret;
-	sgx_ret = ecall_get_secret(*eid, &get_secret_ret, msg4->secret, msg4->secret_size, &msg4->mac);
-	if (sgx_ret != SGX_SUCCESS || get_secret_ret != SGX_SUCCESS) {
-		eprintf("Provisioning enclave did not return secret: %08x\n", get_secret_ret);
-		return 0;
-	}
+    sgx_ret = ecall_get_secret(*eid, &get_secret_ret, msg4->secret, msg4->secret_size, &msg4->mac);
+    if (sgx_ret != SGX_SUCCESS || get_secret_ret != SGX_SUCCESS) {
+        eprintf("Provisioning enclave did not return secret: %08x\n", get_secret_ret);
+        return 0;
+    }
 
-	if ( verbose ) {
-		edivider();
+    if ( verbose ) {
+        edivider();
 
-		// The enclave report is valid so we can trust the report
-		// data.
+        // The enclave report is valid so we can trust the report
+        // data.
 
-		edividerWithText("Enclave Report Details");
+        edividerWithText("Enclave Report Details");
 
-		eprintf("cpu_svn     = %s\n",
-			hexstring(&r->cpu_svn, sizeof(sgx_cpu_svn_t)));
-		eprintf("misc_select = %s\n",
-			hexstring(&r->misc_select, sizeof(sgx_misc_select_t)));
-		eprintf("attributes  = %s\n",
-			hexstring(&r->attributes, sizeof(sgx_attributes_t)));
-		eprintf("mr_enclave  = %s\n",
-			hexstring(&r->mr_enclave, sizeof(sgx_measurement_t)));
-		eprintf("mr_signer   = %s\n",
-			hexstring(&r->mr_signer, sizeof(sgx_measurement_t)));
-		eprintf("isv_prod_id = %04hX\n", r->isv_prod_id);
-		eprintf("isv_svn     = %04hX\n", r->isv_svn);
-		eprintf("report_data = %s\n",
-			hexstring(&r->report_data, sizeof(sgx_report_data_t)));
-	}
+        eprintf("cpu_svn     = %s\n",
+        hexstring(&r->cpu_svn, sizeof(sgx_cpu_svn_t)));
+        eprintf("misc_select = %s\n",
+        hexstring(&r->misc_select, sizeof(sgx_misc_select_t)));
+        eprintf("attributes  = %s\n",
+        hexstring(&r->attributes, sizeof(sgx_attributes_t)));
+        eprintf("mr_enclave  = %s\n",
+        hexstring(&r->mr_enclave, sizeof(sgx_measurement_t)));
+        eprintf("mr_signer   = %s\n",
+        hexstring(&r->mr_signer, sizeof(sgx_measurement_t)));
+        eprintf("isv_prod_id = %04hX\n", r->isv_prod_id);
+        eprintf("isv_svn     = %04hX\n", r->isv_svn);
+        eprintf("report_data = %s\n",
+        hexstring(&r->report_data, sizeof(sgx_report_data_t)));
+    }
 
 
-	edividerWithText("Copy/Paste Msg4 Below to Client");
+    edividerWithText("Copy/Paste Msg4 Below to Client");
 
-	/* Serialize the members of the Msg4 structure independently */
-	/* vs. the entire structure as one send_msg() */
+    /* Serialize the members of the Msg4 structure independently */
+    /* vs. the entire structure as one send_msg() */
 
-	msgio->send_partial((void *) msg4, sizeof(ra_msg4_t));
-	fsend_msg_partial(fplog, (void *) msg4, sizeof(ra_msg4_t));
+    msgio->send_partial((void *) msg4, sizeof(ra_msg4_t));
+    fsend_msg_partial(fplog, (void *) msg4, sizeof(ra_msg4_t));
 
-	msgio->send((void*) msg4->secret, msg4->secret_size);
-	fsend_msg(fplog, (void*) msg4->secret, msg4->secret_size);
+    msgio->send((void*) msg4->secret, msg4->secret_size);
+    fsend_msg(fplog, (void*) msg4->secret, msg4->secret_size);
 
-	edivider();
+    edivider();
 
-	free(msg3);
-	free(msg4);
+    free(msg3);
+    free(msg4);
 
-	return 1;
+    return 1;
 }
 
 /* We don't care which signal it is since we're shutting down regardless */
 
 void cleanup_and_exit(int signo)
 {
-	/* Signal-safe, and we don't care if it fails or is a partial write. */
+    /* Signal-safe, and we don't care if it fails or is a partial write. */
 
-	ssize_t bytes= write(STDERR_FILENO, "\nterminating\n", 13);
+    ssize_t bytes= write(STDERR_FILENO, "\nterminating\n", 13);
 
-	/*
-	 * This destructor consists of signal-safe system calls (close,
-	 * shutdown).
-	 */
+    /*
+    * This destructor consists of signal-safe system calls (close,
+    * shutdown).
+    */
 
-	delete msgio;
+    delete msgio;
 
-	// Destroy provisioning enclave
-	if (NULL != eid) {
-    	sgx_destroy_enclave(*eid);
-	}
+    // Destroy provisioning enclave
+    if (NULL != eid) {
+        sgx_destroy_enclave(*eid);
+    }
 
-	exit(1);
+    exit(1);
 }
 
 #define NNL <<endl<<endl<<
@@ -730,15 +730,15 @@ void cleanup_and_exit(int signo)
 
 void usage ()
 {
-	cerr << "usage: provisioning_service [ options ] [ port ]" NL
-"Optional:" NL
-"  -d, --debug              Print debug information to stderr." NNL
-"  -v, --verbose            Be verbose. Print message structure details and" NL
-"                           the results of intermediate operations to stderr." NNL
-"  -z  --stdio              Read from stdin and write to stdout instead of" NL
-"                           running as a network server." <<endl;
+    cerr << "usage: provisioning_service [ options ] [ port ]" NL
+    "Optional:" NL
+    "  -d, --debug              Print debug information to stderr." NNL
+    "  -v, --verbose            Be verbose. Print message structure details and" NL
+    "                           the results of intermediate operations to stderr." NNL
+    "  -z  --stdio              Read from stdin and write to stdout instead of" NL
+    "                           running as a network server." <<endl;
 
-	::exit(1);
+    ::exit(1);
 }
 
 /* vim: ts=4: */

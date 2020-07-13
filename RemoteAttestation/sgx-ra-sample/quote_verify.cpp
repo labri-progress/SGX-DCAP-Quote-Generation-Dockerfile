@@ -92,7 +92,8 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
         &p_quote_verification_result,
         &p_qve_report_info,
         supplemental_data_size,
-        p_supplemental_data);
+        p_supplemental_data
+    );
     if (qve_ret == SGX_QL_SUCCESS) {
         printf("\tInfo: App: sgx_qv_verify_quote successfully returned.\n");
     }
@@ -108,7 +109,8 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
         &p_qveid_issue_chain,
         &qveid_issue_chain_size,
         &p_root_ca_crl,
-        &root_ca_crl_size);
+        &root_ca_crl_size
+    );
     if (qpl_ret != SGX_QL_SUCCESS) {
         printf("\tError: App: Get QvE Identity and Root CA CRL from PCCS failed: 0x%04x\n", qpl_ret);
         sgx_qv_free_qve_identity(p_qveid, p_qveid_issue_chain, p_root_ca_crl);
@@ -136,7 +138,8 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
         p_collateral_expiration_status,
         (uint32_t)p_quote_verification_result,
         p_supplemental_data,
-        supplemental_data_size);
+        supplemental_data_size
+    );
 
     if (sgx_ret != SGX_SUCCESS || verify_report_ret != SGX_SUCCESS) {
         printf("\tError: failed to verify QvE report. 0x%04x\n", verify_report_ret);

@@ -20,10 +20,10 @@ in the License.
 #include <stdlib.h>
 #include <string.h>
 #include <sgx_urts.h>
-# include <arpa/inet.h>
-# include <sys/socket.h>
-# include <netdb.h>
-# include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <unistd.h>
 #include <exception>
 #include <stdexcept>
 #include <string>
