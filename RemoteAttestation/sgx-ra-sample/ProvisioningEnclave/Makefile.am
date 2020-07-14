@@ -41,11 +41,6 @@ include $(top_srcdir)/build-aux/sgx_enclave.am
 ##   SGX_EDGER8R
 ##   SGX_SIGN
 
-PREBUILT_QVL_PATH := ../prebuilt/QVL
-
-AM_CPPFLAGS += -I$(PREBUILT_QVL_PATH)/inc
-
-
 ## Supply additional flags to edger8r here.
 
 SGX_EDGER8R_FLAGS=--search-path ..
@@ -114,9 +109,8 @@ ProvisioningEnclave_LDADD = @SGX_ENCLAVE_LDADD@
 ## SGXSSL libraries, and your trusted c++ library
 
 SGX_EXTRA_TLIBS=-lsgx_tkey_exchange -lsgx_tcxx \
- 								 	-L$(PREBUILT_QVL_PATH)/lib/linux64 -Wl,--whole-archive -lQuoteVerification -lAttestationParser \
-									-Wl,--whole-archive -lsgx_tsgxssl \
-									-Wl,--no-whole-archive -lsgx_tsgxssl_crypto
+									-Wl,--whole-archive -lsgx_dcap_tvl \
+									-Wl,--whole-archive -lsgx_tsgxssl	-Wl,--no-whole-archive -lsgx_tsgxssl_crypto
 
 
 ## This line is OPTIONAL, and comes with a WARNING.

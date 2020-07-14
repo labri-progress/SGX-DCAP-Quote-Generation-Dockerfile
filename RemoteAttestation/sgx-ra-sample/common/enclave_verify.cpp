@@ -25,7 +25,7 @@ bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t*
         // printf("\tInfo: App: Verification completed successfully.\n");
 
         return true;
-    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
+    case SGX_QL_QV_RESULT_OUT_OF_DATE:
         // The CPU this was tested on was not up to date... so we adopt a less trict policy
         // printf("\tInfo: App: CPU out of date (%s). Checking if this is acceptable...", ctime(&tcbLevelDate));
         // printf(" (min date is %s)\n", ctime(&minTcbLevelDate));
@@ -38,7 +38,7 @@ bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t*
 	        return false;
         }
         break;
-    case SGX_QL_QV_RESULT_OUT_OF_DATE:
+    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
     // case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
     case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
     case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:

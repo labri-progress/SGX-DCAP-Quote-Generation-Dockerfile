@@ -61,9 +61,6 @@ FROM builder as sample
 WORKDIR /var/app/sgx-ra-sample
 COPY ./sgx-ra-sample .
 
-# Copy prebuilt versions of the QVL and of SGX SSL
-COPY ./SGXDataCenterAttestationPrimitives/SampleCode/QuoteVerificationSample/prebuilt prebuilt
-
 RUN ./bootstrap
 RUN ./configure # --disable-dcap
 RUN make

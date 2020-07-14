@@ -37,7 +37,7 @@
 #include "sgx_utils.h"
 #include "sgx_tcrypto.h"
 #include "sgx_qve_header.h"
-#include "QuoteVerification.h"
+#include "sgx_dcap_tvl.h" // to verify the QvE identity
 #include "crypto.h"
 #include "rsa.h"
 #include "time.h"
@@ -177,128 +177,45 @@ sgx_status_t ecall_get_target_info(sgx_target_info_t* target_info) {
     return sgx_self_target(target_info);
 }
 
-sgx_status_t ecall_verify_report(uint8_t* p_report,
-                                uint64_t report_size,
-                                uint8_t* p_rand,
-                                uint16_t rand_size,
-                                uint8_t* p_qveid,
-                                uint32_t qveid_size,
-                                uint8_t* p_qveid_issue_chain,
-                                uint32_t qveid_issue_chain_size,
-                                uint8_t* p_root_ca_crl,
-                                uint32_t root_ca_crl_size,
-                                int64_t expiration_check_date,
-                                uint32_t collateral_expiration_status,
-                                uint32_t verification_result,
-                                uint8_t* p_supplemental_data,
-                                uint32_t supplemental_data_size) {
+sgx_status_t ecall_verify_report(
+    const sgx_ql_qe_report_info_t *p_qve_report_info,
+    time_t expiration_check_date,
+    uint32_t collateral_expiration_status,
+    sgx_ql_qv_result_t quote_verification_result,
+    const uint8_t *p_supplemental_data,
+    uint32_t supplemental_data_size) {
 
     if (ra_stage != 2) {
         return SGX_ERROR_INVALID_STATE;
     }
 
-    if (p_report == NULL || report_size != sizeof(sgx_report_t) ||
-        p_rand == NULL || rand_size == 0 ||
-        p_qveid == NULL || qveid_size == 0 ||
-        p_qveid_issue_chain == NULL || qveid_issue_chain_size == 0 ||
-        p_root_ca_crl == NULL || root_ca_crl_size == 0 ||
-        (p_supplemental_data != NULL && supplemental_data_size == 0)) {
-        return SGX_ERROR_INVALID_PARAMETER;
-    }
-
 	#ifndef NO_DCAP // otherwise, ignore the verification result
-    sgx_status_t sgx_status = SGX_ERROR_UNEXPECTED;
-    sgx_status_t ret = SGX_ERROR_UNEXPECTED;
-    sgx_sha_state_handle_t sha_handle = NULL;
-    sgx_report_data_t report_data = { 0 };
-    Status qveid_res = STATUS_UNSUPPORTED_CERT_FORMAT;
-    sgx_report_t *p_qve_report = reinterpret_cast<sgx_report_t *>(p_report);
 
-
-    do {
-        ret = sgx_verify_report(p_qve_report);
-        if (ret != SGX_SUCCESS) {
-            break;
-        }
-        //report_data = SHA256([nonce || quote || expiration_check_date || expiration_status || verification_result || supplemental_data] || 32 - 0x00)
-        //
-        sgx_status = sgx_sha256_init(&sha_handle);
-        SGX_ERR_BREAK(sgx_status);
-
-        //nonce
-        //
-        sgx_status = sgx_sha256_update((p_rand), rand_size, sha_handle);
-        SGX_ERR_BREAK(sgx_status);
-
-        //quote
-        //
-        sgx_status = sgx_sha256_update(ra_session.quote, (uint32_t)ra_session.quote_size, sha_handle);
-        SGX_ERR_BREAK(sgx_status);
-
-        //expiration_check_date
-        //
-        sgx_status = sgx_sha256_update((const uint8_t*)&expiration_check_date, sizeof(expiration_check_date), sha_handle);
-        SGX_ERR_BREAK(sgx_status);
-
-        //collateral_expiration_status
-        //
-        sgx_status = sgx_sha256_update((uint8_t*)&collateral_expiration_status, sizeof(collateral_expiration_status), sha_handle);
-        SGX_ERR_BREAK(sgx_status);
-
-        //verification_result
-        //
-        sgx_status = sgx_sha256_update((uint8_t*)&verification_result, sizeof(verification_result), sha_handle);
-        SGX_ERR_BREAK(sgx_status);
-
-
-        //p_supplemental_data
-        //
-        if (p_supplemental_data) {
-            sgx_status = sgx_sha256_update(p_supplemental_data, supplemental_data_size, sha_handle);
-            SGX_ERR_BREAK(sgx_status);
-        }
-
-        //get the hashed report_data
-        //
-        sgx_status = sgx_sha256_get_hash(sha_handle, reinterpret_cast<sgx_sha256_hash_t *>(&report_data));
-        SGX_ERR_BREAK(sgx_status);
-
-        if (memcmp(&p_qve_report->body.report_data, &report_data, sizeof(report_data)) != 0) {
-            ret = SGX_ERROR_UNEXPECTED;
-            break;
-        }
-
-        //verify QvE identity chain
-        //use hardcode Intel Root CA here
-        const char* trusted_root_ca_cert = TRUSTED_ROOT_CA_CERT;
-        qveid_res = sgxAttestationVerifyEnclaveIdentity(reinterpret_cast<const char*>(p_qveid),
-                                                        reinterpret_cast<const char*>(p_qveid_issue_chain),
-                                                        reinterpret_cast<const char*>(p_root_ca_crl),
-                                                        trusted_root_ca_cert,
-                                                        &expiration_check_date);
-
-        if (qveid_res != STATUS_OK) {
-            ret = SGX_ERROR_UNEXPECTED;
-            break;
-        }
-
-        qveid_res = sgxAttestationVerifyEnclaveReport(p_report, reinterpret_cast<const char*>(p_qveid));
-
-        if (qveid_res != STATUS_OK) {
-            ret = SGX_ERROR_UNEXPECTED;
-            break;
-        }
-
-        ret = SGX_SUCCESS;
-    } while (0);
+    // Threshold of QvE ISV SVN. The ISV SVN of QvE used to verify quote must be greater or equal to this threshold
+    // e.g. You can get latest QvE ISVSVN in QvE Identity JSON file from
+    // https://api.trustedservices.intel.com/sgx/certification/v2/qve/identity
+    // Make sure you are using trusted & latest QvE ISV SVN as threshold
+    //
+    sgx_isv_svn_t qve_isvsvn_threshold = 3;
+    quote3_error_t qve_verify_ret = sgx_tvl_verify_qve_report_and_identity(
+        ra_session.quote,
+        (uint32_t) ra_session.quote_size,
+        p_qve_report_info,
+        expiration_check_date,
+        collateral_expiration_status,
+        quote_verification_result,
+        p_supplemental_data,
+        supplemental_data_size,
+        qve_isvsvn_threshold
+    );
 
 	// In case the verification of the QVE result fails
-	if (ret != SGX_SUCCESS) {
+	if (qve_verify_ret != SGX_QL_SUCCESS) {
     	ra_stage = 0;
-		return ret;
+		return SGX_ERROR_UNEXPECTED;
 	}
 
-    if (!validate_qve_result(verification_result, (sgx_ql_qv_supplemental_t*) p_supplemental_data)) {
+    if (!validate_qve_result(quote_verification_result, (sgx_ql_qv_supplemental_t*) p_supplemental_data)) {
         ra_stage = 0;
 
         return SGX_ERROR_UNEXPECTED;

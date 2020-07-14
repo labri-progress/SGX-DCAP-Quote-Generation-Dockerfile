@@ -36,6 +36,9 @@ enclave {
     include "sgx_key_exchange.h"
   	include "sgx_tkey_exchange.h"
     include "sgx_tcrypto.h"
+    
+    include "sgx_qve_header.h"
+    include "sgx_ql_quote.h"
 
   	from "sgx_tsgxssl.edl" import *;
     from "sgx_tstdc.edl" import *;
@@ -69,21 +72,13 @@ enclave {
         );
 
         public sgx_status_t ecall_verify_report(
-                                [in, size = report_size] uint8_t* p_report,
-                                uint64_t report_size,
-                                [in, size = rand_size] uint8_t *p_rand,
-                                uint16_t rand_size,
-                                [in, size = qveid_size]uint8_t* p_qveid,
-                                uint32_t qveid_size,
-                                [in, size = qveid_issue_chain_size]uint8_t* p_qveid_issue_chain,
-                                uint32_t qveid_issue_chain_size,
-                                [in, size = root_ca_crl_size]uint8_t* p_root_ca_crl,
-                                uint32_t root_ca_crl_size,
-                                int64_t expiration_check_date,
+                                [in, count=1] const sgx_ql_qe_report_info_t *p_qve_report_info,
+                                time_t expiration_check_date,
                                 uint32_t collateral_expiration_status,
-                                uint32_t verification_result,
-                                [in, size = supplemental_data_size] uint8_t* p_supplemental_data,
-                                uint32_t supplemental_data_size);
+                                sgx_ql_qv_result_t quote_verification_result,
+                                [in, size=supplemental_data_size] const uint8_t *p_supplemental_data,
+                                uint32_t supplemental_data_size
+        );
 
         public sgx_status_t ecall_get_target_info([out] sgx_target_info_t* target_info);
 
