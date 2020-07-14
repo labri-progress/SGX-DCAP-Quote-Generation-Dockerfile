@@ -35,7 +35,6 @@ in the License.
 #include <openssl/pem.h>
 #include "common.h"
 #include "hexutil.h"
-#include "fileio.h"
 #include "msgio.h"
 #include "protocol.h"
 #include "logfile.h"

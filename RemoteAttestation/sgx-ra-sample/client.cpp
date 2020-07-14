@@ -36,7 +36,6 @@ using namespace std;
 #include "protocol.h"
 #include "sgx_detect.h"
 #include "hexutil.h"
-#include "fileio.h"
 #include "msgio.h"
 #include "logfile.h"
 

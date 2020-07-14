@@ -84,7 +84,7 @@ bin_PROGRAMS = client provisioning_service bootstrap_service mrsigner
 ## You can't use $(wildcard ...) with automake so all source files
 ## have to be explicitly listed.
 
-common = common.cpp hexutil.c fileio.c \
+common = common.cpp hexutil.c \
 	msgio.cpp logfile.c
 
 ## client
