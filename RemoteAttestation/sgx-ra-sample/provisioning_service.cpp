@@ -297,7 +297,7 @@ int main(int argc, char *argv[])
         break;
     }
 
-    printf("Initialization done. Passing to requests processing.\n\n");
+    eprintf("Initialization done. Passing to requests processing.\n\n");
 
     // Server mode, loop to process all the requests from both the proxies and the clients
     while ( msgio->server_loop() ) {
@@ -358,7 +358,7 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
     fsend_msg(fplog, &msg1, sizeof(msg1));
     divider(fplog);
 
-    dividerWithText(stderr, "Copy/Paste Msg1 Below to SP");
+    dividerWithText(stderr, "Sending Msg1 Below to SP");
     eprintf("Sending msg1.\n");
     msgio->send(&msg1, sizeof(msg1));
     divider(stderr);
@@ -400,7 +400,7 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
         return false;
     }
 
-    dividerWithText(stderr, "Copy/Paste Msg3 Below to SP");
+    dividerWithText(stderr, "Sending Msg3 Below to SP");
     msgio->send(msg3, msg3_sz);
     divider(stderr);
 
@@ -498,7 +498,7 @@ void do_provisioning(MsgIO* msgio)
     * portion and the array portion by hand.
     */
 
-    dividerWithText(stderr, "Copy/Paste Msg2 Below to Client");
+    dividerWithText(stderr, "Sending Msg2 Below to Client");
     dividerWithText(fplog, "Msg2 (send to Client)");
 
     msgio->send_partial((void *) &msg2, sizeof(sgx_ra_msg2_t));
@@ -548,17 +548,6 @@ int process_msg1 (MsgIO *msgio, sgx_ra_msg1_t *msg1, sgx_ra_msg2_t *msg2)
         return 0;
     }
 
-    if ( verbose ) {
-        edividerWithText("Msg1 Details (from Client)");
-        eprintf("msg1.g_a.gx = %s\n",
-        hexstring(&msg1->g_a.gx, sizeof(msg1->g_a.gx)));
-        eprintf("msg1.g_a.gy = %s\n",
-        hexstring(&msg1->g_a.gy, sizeof(msg1->g_a.gy)));
-        eprintf("msg1.gid    = %s\n",
-        hexstring( &msg1->gid, sizeof(msg1->gid)));
-        edivider();
-    }
-
     return 1;
 }
 
@@ -567,10 +556,8 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
     sgx_status_t sgx_ret;
 
     /*
-    * Read our incoming message. We're using base16 encoding/hex strings
-    * so we should end up with sizeof(msg)*2 bytes.
+    * Read our incoming message.
     */
-
     fprintf(stderr, "Waiting for msg3\n");
 
     /*
@@ -607,6 +594,12 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
         return 0;
     }
 
+    /*
+    * Verify that the quote was produced by a valid SGX platform and that the
+    * enclave report is from a trusted enclave. Namely,
+    * that the MRSIGNER matches our signing key, and the PRODID matches
+    * our expectations.
+    */
     if (ecdsa_quote_verification(*eid, (uint8_t*) &msg3->quote, quote_size) != 0) {
         eprintf("Invalid quote (Verification failed).\n");
 
@@ -630,21 +623,6 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 
     msg4->status = Trusted;
 
-    /*
-    * The service provider must validate that the enclave
-    * report is from an enclave that they recognize. Namely,
-    * that the MRSIGNER matches our signing key, and the MRENCLAVE
-    * hash matches an enclave that we compiled.
-    *
-    * Other policy decisions might include examining ISV_SVN to
-    * prevent outdated/deprecated software from successfully
-    * attesting, and ensuring the TCB is not out of date.
-    *
-    * A real-world service provider might allow multiple ISV_SVN
-    * values, but for this sample we only allow the enclave that
-    * is compiled.
-    */
-
     sgx_quote_t *q = (sgx_quote_t *) msg3->quote;
     sgx_report_body_t *r = (sgx_report_body_t *) &q->report_body;
 
@@ -665,24 +643,18 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
 
         edividerWithText("Enclave Report Details");
 
-        eprintf("cpu_svn     = %s\n",
-        hexstring(&r->cpu_svn, sizeof(sgx_cpu_svn_t)));
-        eprintf("misc_select = %s\n",
-        hexstring(&r->misc_select, sizeof(sgx_misc_select_t)));
-        eprintf("attributes  = %s\n",
-        hexstring(&r->attributes, sizeof(sgx_attributes_t)));
-        eprintf("mr_enclave  = %s\n",
-        hexstring(&r->mr_enclave, sizeof(sgx_measurement_t)));
-        eprintf("mr_signer   = %s\n",
-        hexstring(&r->mr_signer, sizeof(sgx_measurement_t)));
+        eprintf("cpu_svn     = %s\n", hexstring(&r->cpu_svn, sizeof(sgx_cpu_svn_t)));
+        eprintf("misc_select = %s\n", hexstring(&r->misc_select, sizeof(sgx_misc_select_t)));
+        eprintf("attributes  = %s\n", hexstring(&r->attributes, sizeof(sgx_attributes_t)));
+        eprintf("mr_enclave  = %s\n", hexstring(&r->mr_enclave, sizeof(sgx_measurement_t)));
+        eprintf("mr_signer   = %s\n", hexstring(&r->mr_signer, sizeof(sgx_measurement_t)));
         eprintf("isv_prod_id = %04hX\n", r->isv_prod_id);
         eprintf("isv_svn     = %04hX\n", r->isv_svn);
-        eprintf("report_data = %s\n",
-        hexstring(&r->report_data, sizeof(sgx_report_data_t)));
+        eprintf("report_data = %s\n", hexstring(&r->report_data, sizeof(sgx_report_data_t)));
     }
 
 
-    edividerWithText("Copy/Paste Msg4 Below to Client");
+    edividerWithText("Sending Msg4 Below to Client");
 
     /* Serialize the members of the Msg4 structure independently */
     /* vs. the entire structure as one send_msg() */

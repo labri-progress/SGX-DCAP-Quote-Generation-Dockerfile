@@ -107,7 +107,7 @@ COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/ProvisioningEnclave.signed
 
 WORKDIR /var/app/sgx-ra-sample
 USER sgxuser
-CMD ./run-provisioning --verbose
+CMD ./run-provisioning
 
 
 FROM sample as bootstrap_service
@@ -116,4 +116,4 @@ COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-bootstrap .
 
 WORKDIR /var/app/sgx-ra-sample
 USER sgxuser
-CMD ./run-bootstrap --verbose
+CMD ./run-bootstrap
