@@ -34,8 +34,8 @@ in the License.
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include "common.h"
-#include "hexutil.h"
-#include "msgio.h"
+#include "common/hexutil.h"
+#include "common/msgio.h"
 #include "protocol.h"
 #include "logfile.h"
 #include "quote_verify.h"

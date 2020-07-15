@@ -22,7 +22,7 @@ in the License.
 #include <sgx_tkey_exchange.h>
 #include <sgx_tcrypto.h>
 
-#include "../crypto.h"
+#include "../common/crypto.h"
 #include "../keys/provisioning_public.h"
 
 sgx_status_t enclave_ra_init(sgx_ra_context_t *ctx)

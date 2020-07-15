@@ -22,33 +22,30 @@ bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t*
     {
     case SGX_QL_QV_RESULT_OK:
     case SGX_QL_QV_RESULT_CONFIG_NEEDED:
-        // printf("\tInfo: App: Verification completed successfully.\n");
+        // Verification completed successfully.
 
         return true;
+    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED: // TODO: do not accept this status (Hyperthreading must be disabled on the machine, see https://software.intel.com/security-software-guidance/software-guidance/l1-terminal-fault)
     case SGX_QL_QV_RESULT_OUT_OF_DATE:
         // The CPU this was tested on was not up to date... so we adopt a less trict policy
-        // printf("\tInfo: App: CPU out of date (%s). Checking if this is acceptable...", ctime(&tcbLevelDate));
-        // printf(" (min date is %s)\n", ctime(&minTcbLevelDate));
 
         if (minTcbLevelDate <= tcbLevelDate) {
-            // printf("ok...\n");
+            // ok...
             return true;
         } else {
-            // printf("too old...\n");
+            // too old...
 	        return false;
         }
         break;
-    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
-    // case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
     case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
     case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
-        // printf("\tWarning: App: Verification completed with Non-terminal result: %x\n", p_quote_verification_result);
+        // Verification completed with Non-terminal result
         return false;
     case SGX_QL_QV_RESULT_INVALID_SIGNATURE:
     case SGX_QL_QV_RESULT_REVOKED:
     case SGX_QL_QV_RESULT_UNSPECIFIED:
     default:
-        // printf("\tError: App: Verification completed with Terminal result: %x\n", p_quote_verification_result);
+        // Verification completed with Terminal result
         return false;
     }
 }

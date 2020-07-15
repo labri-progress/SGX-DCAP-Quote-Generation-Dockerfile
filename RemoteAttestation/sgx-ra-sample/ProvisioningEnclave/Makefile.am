@@ -80,7 +80,7 @@ CLEANFILES+= $(ENCLAVE)_t.c $(ENCLAVE)_t.h
 
 ProvisioningEnclave_SOURCES = ProvisioningEnclave_t.c ProvisioningEnclave_t.h ProvisioningEnclave.cpp \
 		../common/remote_attestation.cpp ../common/remote_attestation.h ../common/byteorder.c ../common/byteorder.h \
-		../crypto.c ../crypto.h rsa.cpp rsa.h ../common/enclave_verify.cpp ../common/enclave_verify.h \
+		../common/crypto.c ../common/crypto.h rsa.cpp rsa.h ../common/enclave_verify.cpp ../common/enclave_verify.h \
 		$(ENCLAVE_KEY) $(ENCLAVE_CONFIG)
 
 

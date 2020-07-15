@@ -20,7 +20,7 @@ in the License.
 #include <stdlib.h>
 #include <sys/stat.h>
 #include "logfile.h"
-#include "hexutil.h"
+#include "common/hexutil.h"
 
 FILE *fplog = NULL;
 

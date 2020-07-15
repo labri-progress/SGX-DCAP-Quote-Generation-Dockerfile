@@ -43,9 +43,9 @@ RUN /bin/bash -c 'make && make install'
 
 ## Compile the application
 WORKDIR /var/app/sgx-ra-sample
-COPY ./sgx-ra-sample .
-
 RUN apt-get install -y libsgx-dcap-ql-dev
+
+COPY ./sgx-ra-sample .
 
 RUN ./bootstrap
 RUN ./configure # --disable-dcap

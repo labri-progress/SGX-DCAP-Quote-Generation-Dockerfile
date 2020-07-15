@@ -84,8 +84,8 @@ bin_PROGRAMS = client provisioning_service bootstrap_service mrsigner
 ## You can't use $(wildcard ...) with automake so all source files
 ## have to be explicitly listed.
 
-common = common.cpp hexutil.c \
-	msgio.cpp logfile.c
+common = common.cpp common/hexutil.c \
+	common/msgio.cpp logfile.c
 
 ## client
 
@@ -130,14 +130,14 @@ provisioning_service_LDADD= -l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SE
 
 ## bootstrap_service
 
-bootstrap_service_SOURCES = bootstrap_service.cpp $(common) common/remote_attestation.cpp crypto.c common/byteorder.c common/enclave_verify.cpp
+bootstrap_service_SOURCES = bootstrap_service.cpp $(common) common/remote_attestation.cpp common/crypto.c common/byteorder.c common/enclave_verify.cpp
 bootstrap_service_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 bootstrap_service_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -lcrypto
 
 
 ## mrsigner (helper app)
 
-mrsigner_SOURCES = mrsigner.cpp hexutil.c crypto.c
+mrsigner_SOURCES = mrsigner.cpp common/hexutil.c common/crypto.c
 
 ## Extract the enclave SIGSTRUCT and use it to calculate MRSIGNER
 policy: mrsigner policy.in.h Enclave.signed.so

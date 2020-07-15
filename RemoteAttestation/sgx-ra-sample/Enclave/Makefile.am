@@ -80,7 +80,7 @@ CLEANFILES+= $(ENCLAVE)_t.c $(ENCLAVE)_t.h
 ## target name (i.e., $(ENCLAVE)_SOURCES will not work).
 
 Enclave_SOURCES = Enclave_t.c Enclave_t.h Enclave.cpp \
-	../crypto.c ../crypto.h \ # to load the Provisioning public key
+	../common/crypto.c ../common/crypto.h \ # to load the Provisioning public key
 	$(ENCLAVE_KEY) $(ENCLAVE_CONFIG)
 
 

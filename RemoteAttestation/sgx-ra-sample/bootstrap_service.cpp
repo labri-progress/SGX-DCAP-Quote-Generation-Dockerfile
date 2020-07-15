@@ -31,8 +31,8 @@ in the License.
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include "common.h"
-#include "hexutil.h"
-#include "msgio.h"
+#include "common/hexutil.h"
+#include "common/msgio.h"
 #include "protocol.h"
 #include "logfile.h"
 
@@ -42,7 +42,7 @@ in the License.
 #include "sgx_qve_header.h"
 #include "sgx_tcrypto.h" // in order to use `sgx_rijndael128GCM_encrypt`
 
-#include "crypto.h"
+#include "common/crypto.h"
 #include "common/remote_attestation.h"
 #include "common/enclave_verify.h"
 

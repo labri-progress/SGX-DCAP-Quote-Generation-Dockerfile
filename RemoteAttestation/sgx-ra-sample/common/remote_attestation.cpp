@@ -36,7 +36,7 @@
 #include <sgx_utils.h>
 #include <sgx_tcrypto.h>
 
-#include "../crypto.h"
+#include "crypto.h"
 #include "byteorder.h"
 #include "remote_attestation.h"
 

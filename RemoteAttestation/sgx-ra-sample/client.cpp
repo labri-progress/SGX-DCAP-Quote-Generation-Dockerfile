@@ -35,8 +35,8 @@ using namespace std;
 #include "common.h"
 #include "protocol.h"
 #include "sgx_detect.h"
-#include "hexutil.h"
-#include "msgio.h"
+#include "common/hexutil.h"
+#include "common/msgio.h"
 #include "logfile.h"
 
 #define MAX_LEN 80
