@@ -1,37 +1,28 @@
-FROM ubuntu:18.04 as builder
+FROM ubuntu:18.04 as sgxbase
 RUN apt-get update && apt-get install -y \
-    g++ \
-    libcurl4-openssl-dev \
-    libprotobuf-dev \
-    libssl-dev \
-    make \
-    module-init-tools \
-    # For the repository setup
-    wget \
     gnupg \
-    # Dependencies required by sgx-ra-sample
-    autotools-dev \
-    automake \
-    xxd \
-    git
+    wget
 
-# Install the SDK
+# Set up Intel repository
+RUN echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' > /etc/apt/sources.list.d/intel-sgx.list
+RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
+RUN apt-get update
+
+
+FROM sgxbase as sgx_sample_builder
+# App build time dependencies
+RUN apt-get install -y build-essential \
+# libraries needed to compile SGX SSL
+git
+
+# Install the sdk
 WORKDIR /opt/intel
 RUN wget https://download.01.org/intel-sgx/sgx-dcap/1.7/linux/distro/ubuntu18.04-server/sgx_linux_x64_sdk_2.10.100.2.bin
 RUN chmod 777 sgx_linux_x64_sdk_2.10.100.2.bin
 RUN sh -c 'echo yes | ./sgx_linux_x64_sdk_2.10.100.2.bin'
 
-# Install DCAP packages
-# DCAP repository setup
-RUN echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' | tee /etc/apt/sources.list.d/intel-sgx.list
-RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
-RUN apt-get update
-
-RUN apt-get install -y libsgx-dcap-ql-dev libsgx-uae-service libsgx-dcap-default-qpl-dev
-
-# We're using a local server with an invalid https certificate
-RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
-
+## Install SGX SSL
+# Mitigation tools
 WORKDIR /var/app/
 RUN wget https://download.01.org/intel-sgx/sgx-linux/2.10/as.ld.objdump.gold.r2.tar.gz
 RUN tar -xf as.ld.objdump.gold.r2.tar.gz
@@ -45,25 +36,65 @@ WORKDIR /var/app/intel-sgx-ssl/Linux
 RUN git checkout lin_2.10_1.1.1g
 RUN /bin/bash -c 'make && make install'
 
+WORKDIR /var/app/sgx-ra-sample
+COPY ./sgx-ra-sample .
 
-# AESM services
-FROM builder as aesm
-RUN apt-get install -y sgx-aesm-service
+RUN apt-get install -y \
+    # Dependencies required by sgx-ra-sample
+    autotools-dev \
+    libssl-dev \
+    automake \
+    xxd \
+    git
+
+RUN apt-get install -y libsgx-dcap-ql-dev
+
+RUN ./bootstrap
+RUN ./configure # --disable-dcap
+RUN make
+
+
+FROM sgxbase as sgxruntime
+RUN apt-get install -y libsgx-dcap-ql-dev libsgx-dcap-default-qpl-dev libsgx-uae-service
+
+# We're using a local server with an invalid https certificate
+RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
+
+
+## AESM services
+FROM sgxruntime as aesm
+RUN apt-get install -y \
+    libcurl4 \
+    libprotobuf10 \
+    libssl1.1 \
+    make \
+    module-init-tools
+
+RUN apt-get install -y sgx-aesm-service libsgx-uae-service
 
 WORKDIR /opt/intel/sgx-aesm-service/aesm
 ENV LD_LIBRARY_PATH=.
 CMD ./aesm_service --no-daemon
 
 
-# The app
-FROM builder as sample
+## The app
+FROM sgxruntime as sample
+RUN apt-get install -y \
+    libcurl4 \
+    libprotobuf10 \
+    libssl1.1
 
 WORKDIR /var/app/sgx-ra-sample
-COPY ./sgx-ra-sample .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/bootstrap_service .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/provisioning_service .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/client .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/Enclave.signed.so .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/ProvisioningEnclave.signed.so .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/settings .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-client .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-provisioning .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-bootstrap .
 
-RUN ./bootstrap
-RUN ./configure # --disable-dcap
-RUN make
 RUN chmod 777 .
 
 RUN adduser -q --disabled-password --gecos "" --no-create-home sgxuser
