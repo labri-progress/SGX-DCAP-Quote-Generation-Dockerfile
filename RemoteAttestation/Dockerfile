@@ -12,10 +12,15 @@ RUN apt-get update
 FROM sgxbase as sgx_sample_builder
 # App build time dependencies
 RUN apt-get install -y build-essential \
-# libraries needed to compile SGX SSL
-git
+    # libraries needed to compile SGX SSL
+    git \
+    # Dependencies required by sgx-ra-sample
+    autotools-dev \
+    libssl-dev \
+    automake \
+    xxd
 
-# Install the sdk
+## Install the sdk
 WORKDIR /opt/intel
 RUN wget https://download.01.org/intel-sgx/sgx-dcap/1.7/linux/distro/ubuntu18.04-server/sgx_linux_x64_sdk_2.10.100.2.bin
 RUN chmod 777 sgx_linux_x64_sdk_2.10.100.2.bin
@@ -36,16 +41,9 @@ WORKDIR /var/app/intel-sgx-ssl/Linux
 RUN git checkout lin_2.10_1.1.1g
 RUN /bin/bash -c 'make && make install'
 
+## Compile the application
 WORKDIR /var/app/sgx-ra-sample
 COPY ./sgx-ra-sample .
-
-RUN apt-get install -y \
-    # Dependencies required by sgx-ra-sample
-    autotools-dev \
-    libssl-dev \
-    automake \
-    xxd \
-    git
 
 RUN apt-get install -y libsgx-dcap-ql-dev
 
