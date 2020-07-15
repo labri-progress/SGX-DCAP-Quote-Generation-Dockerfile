@@ -85,15 +85,7 @@ RUN apt-get install -y \
     libssl1.1
 
 WORKDIR /var/app/sgx-ra-sample
-COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/bootstrap_service .
-COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/provisioning_service .
-COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/client .
-COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/Enclave.signed.so .
-COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/ProvisioningEnclave.signed.so .
 COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/settings .
-COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-client .
-COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-provisioning .
-COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-bootstrap .
 
 RUN chmod 777 .
 
@@ -101,6 +93,9 @@ RUN adduser -q --disabled-password --gecos "" --no-create-home sgxuser
 
 
 FROM sample as client
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-client .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/client .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/Enclave.signed.so .
 
 WORKDIR /var/app/sgx-ra-sample
 USER sgxuser
@@ -108,6 +103,9 @@ CMD ./run-client
 
 
 FROM sample as provisioning_service
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-provisioning .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/provisioning_service .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/ProvisioningEnclave.signed.so .
 
 WORKDIR /var/app/sgx-ra-sample
 USER sgxuser
@@ -115,6 +113,8 @@ CMD ./run-provisioning --verbose
 
 
 FROM sample as bootstrap_service
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/bootstrap_service .
+COPY --from=sgx_sample_builder /var/app/sgx-ra-sample/run-bootstrap .
 
 WORKDIR /var/app/sgx-ra-sample
 USER sgxuser
