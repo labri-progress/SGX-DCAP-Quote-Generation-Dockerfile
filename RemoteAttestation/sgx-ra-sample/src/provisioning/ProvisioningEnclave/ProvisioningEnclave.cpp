@@ -186,6 +186,13 @@ sgx_status_t ecall_verify_report(
         return SGX_ERROR_INVALID_STATE;
     }
 
+    if (expiration_check_date < UNIX_TIMESTAMP) {
+        ra_stage = 0;
+
+        // Hack!
+        return SGX_ERROR_INVALID_PARAMETER;
+    }
+
 	#ifndef NO_DCAP // otherwise, ignore the verification result
 
     // Threshold of QvE ISV SVN. The ISV SVN of QvE used to verify quote must be greater or equal to this threshold
