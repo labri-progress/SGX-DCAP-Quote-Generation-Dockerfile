@@ -65,7 +65,7 @@ src/provisioning/ProvisioningEnclave/ProvisioningEnclave.signed.so: policy
 
 AM_CXXFLAGS = -std=c++11
 
-AM_CPPFLAGS += -fno-builtin-memset @OPENSSL_CPPFLAGS@
+AM_CPPFLAGS += -fno-builtin-memset @OPENSSL_CPPFLAGS@ -I src/
 
 ## Additional targets to remove with 'make clean'. You must list
 ## any edger8r generated files here.

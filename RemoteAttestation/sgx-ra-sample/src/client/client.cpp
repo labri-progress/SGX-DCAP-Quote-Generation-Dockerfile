@@ -30,13 +30,13 @@ using namespace std;
 #include <sgx_uae_service.h>
 #include <sgx_ukey_exchange.h>
 #include <string>
-#include "../common.h"
-#include "../protocol.h"
-#include "../sgx_detect.h"
-#include "../../config.h"
+#include "common.h"
+#include "protocol.h"
+#include "sgx_detect.h"
+#include "../config.h"
 #include "Enclave_u.h"
-#include "../common/hexutil.h"
-#include "../common/msgio.h"
+#include "common/hexutil.h"
+#include "common/msgio.h"
 
 #define MAX_LEN 80
 

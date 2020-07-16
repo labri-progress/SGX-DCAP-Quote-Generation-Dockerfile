@@ -27,9 +27,9 @@ in the License.
 #include <exception>
 #include <stdexcept>
 #include <string>
-#include "hexutil.h"
-#include "msgio.h"
-#include "../common.h"
+#include "common/hexutil.h"
+#include "common/msgio.h"
+#include "common.h"
 
 using namespace std;
 

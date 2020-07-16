@@ -27,8 +27,8 @@ in the License.
 #include <sys/types.h>
 #include <getopt.h>
 #include <unistd.h>
-#include "../common/crypto.h"
-#include "../common/hexutil.h"
+#include "common/crypto.h"
+#include "common/hexutil.h"
 
 /*
  * From the "Intel(r) 64 and IA-32 Architectures Software Developer

@@ -18,17 +18,11 @@ in the License.
 #ifndef __MSGIO_H
 #define __MSGIO_H
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
 #include <sys/types.h>
 #include <sgx_urts.h>
 #include <stdio.h>
-#ifdef _WIN32
-#include <WS2tcpip.h>
-#endif
 #include <string>
+
 using namespace std;
 
 #define STRUCT_INCLUDES_PSIZE	0

@@ -43,7 +43,7 @@ include $(top_srcdir)/build-aux/sgx_enclave.am
 
 ## Supply additional flags to edger8r here.
 
-SGX_EDGER8R_FLAGS=--search-path ..
+SGX_EDGER8R_FLAGS=--search-path $(top_srcdir)/src
 
 ## The name of your enclave, enclave config file, and private key
 ## file go in these variables. The ENCLAVE variable creates the
@@ -61,7 +61,7 @@ ENCLAVE_KEY=$(top_srcdir)/keys/enclave_signing_private.pem
 ## AM_CPPFLAGS +=
 ## AM_CXXFLAGS +=
 
-AM_CPPFLAGS += -I..
+AM_CPPFLAGS += -I$(top_srcdir)/src
 
 ## Override LIBS coming from the app configuration, as they don't
 ## apply to the enclave.

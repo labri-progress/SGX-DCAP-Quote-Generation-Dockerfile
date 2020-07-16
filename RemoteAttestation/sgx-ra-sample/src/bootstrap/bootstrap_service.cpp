@@ -16,7 +16,7 @@ in the License.
 */
 
 
-#include "../../config.h"
+#include "../config.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -35,18 +35,18 @@ in the License.
 #include <sgx_dcap_quoteverify.h>
 #include <sgx_qve_header.h>
 
-#include "../protocol.h"
-#include "../common.h"
-#include "../common/hexutil.h"
-#include "../common/msgio.h"
-#include "../common/crypto.h"
-#include "../common/remote_attestation.h"
-#include "../common/enclave_verify.h"
+#include "protocol.h"
+#include "common.h"
+#include "common/hexutil.h"
+#include "common/msgio.h"
+#include "common/crypto.h"
+#include "common/remote_attestation.h"
+#include "common/enclave_verify.h"
 
-#include "../policy.h"
+#include "policy.h"
 
-#include "../../keys/bootstrap_private.h" // This key is used to attest the bootstrap service when contacting the Provisioning Service
-#include "../../keys/provisioning_private.h"
+#include "../keys/bootstrap_private.h" // This key is used to attest the bootstrap service when contacting the Provisioning Service
+#include "../keys/provisioning_private.h"
 
 using namespace std;
 

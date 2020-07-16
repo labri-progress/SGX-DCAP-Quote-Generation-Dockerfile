@@ -28,7 +28,7 @@ in the License.
 #include <string.h>
 #include <stdio.h>
 #include <sgx_key_exchange.h>
-#include "crypto.h"
+#include "common/crypto.h"
 
 static enum _error_type {
 	e_none,
