@@ -125,18 +125,6 @@ const uint8_t g_epid_unlinkable_att_key_id_list[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
-int file_in_searchpath (const char *file, const char *search, char *fullpath,
-	size_t len);
-
-sgx_status_t sgx_create_enclave_search (
-	const char *filename,
-	const int edebug,
-	sgx_launch_token_t *token,
-	int *updated,
-	sgx_enclave_id_t *eid,
-	sgx_misc_attribute_t *attr
-);
-
 void usage();
 int do_attestation(sgx_enclave_id_t eid, config_t *config);
 
@@ -264,8 +252,7 @@ int main (int argc, char *argv[])
 
 	/* Launch the enclave */
 
-	status = sgx_create_enclave_search(ENCLAVE_NAME,
-		SGX_DEBUG_FLAG, &token, &updated, &eid, 0);
+	status = sgx_create_enclave(ENCLAVE_NAME, SGX_DEBUG_FLAG, &token, &updated, &eid, 0);
 	if ( status != SGX_SUCCESS ) {
 		fprintf(stderr, "sgx_create_enclave: %s: %08x\n",
 			ENCLAVE_NAME, status);
@@ -528,94 +515,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 
 	enclave_ra_close(eid, &sgxrv, ra_ctx);
 	delete msgio;
-
-	return 0;
-}
-
-/*
- * Search for the enclave file and then try and load it.
- */
-sgx_status_t sgx_create_enclave_search (const char *filename, const int edebug,
-	sgx_launch_token_t *token, int *updated, sgx_enclave_id_t *eid,
-	sgx_misc_attribute_t *attr)
-{
-	struct stat sb;
-	char epath[PATH_MAX];	/* includes NULL */
-
-	/* Is filename an absolute path? */
-
-	if ( filename[0] == '/' )
-		return sgx_create_enclave(filename, edebug, token, updated, eid, attr);
-
-	/* Is the enclave in the current working directory? */
-
-	if ( stat(filename, &sb) == 0 )
-		return sgx_create_enclave(filename, edebug, token, updated, eid, attr);
-
-	/* Search the paths in LD_LBRARY_PATH */
-
-	if ( file_in_searchpath(filename, getenv("LD_LIBRARY_PATH"), epath, PATH_MAX) )
-		return sgx_create_enclave(epath, edebug, token, updated, eid, attr);
-
-	/* Search the paths in DT_RUNPATH */
-
-	if ( file_in_searchpath(filename, getenv("DT_RUNPATH"), epath, PATH_MAX) )
-		return sgx_create_enclave(epath, edebug, token, updated, eid, attr);
-
-	/* Standard system library paths */
-
-	if ( file_in_searchpath(filename, DEF_LIB_SEARCHPATH, epath, PATH_MAX) )
-		return sgx_create_enclave(epath, edebug, token, updated, eid, attr);
-
-	/*
-	 * If we've made it this far then we don't know where else to look.
-	 * Just call sgx_create_enclave() which assumes the enclave is in
-	 * the current working directory. This is almost guaranteed to fail,
-	 * but it will insure we are consistent about the error codes that
-	 * get reported to the calling function.
-	 */
-
-	return sgx_create_enclave(filename, edebug, token, updated, eid, attr);
-}
-
-int file_in_searchpath (const char *file, const char *search, char *fullpath,
-	size_t len)
-{
-	char *p, *str;
-	size_t rem;
-	struct stat sb;
-
-	if ( search == NULL ) return 0;
-	if ( strlen(search) == 0 ) return 0;
-
-	str= strdup(search);
-	if ( str == NULL ) return 0;
-
-	p= strtok(str, ":");
-	while ( p != NULL) {
-		size_t lp= strlen(p);
-
-		if ( lp ) {
-
-			strncpy(fullpath, p, len-1);
-			rem= (len-1)-lp-1;
-			fullpath[len-1]= 0;
-
-			strncat(fullpath, "/", rem);
-			--rem;
-
-			strncat(fullpath, file, rem);
-
-			if ( stat(fullpath, &sb) == 0 ) {
-				free(str);
-				return 1;
-			}
-		}
-
-		p= strtok(NULL, ":");
-	}
-
-	free(str);
 
 	return 0;
 }
