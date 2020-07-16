@@ -27,7 +27,7 @@ in the License.
 #include <signal.h>
 #include <getopt.h>
 #include <unistd.h>
-#include <sgx_uae_service.h> // attestation key selection
+#include <sgx_uae_quote_ex.h> // attestation key selection
 #include <sgx_key_exchange.h>
 #include <sgx_ukey_exchange.h>
 #include <sgx_report.h>
