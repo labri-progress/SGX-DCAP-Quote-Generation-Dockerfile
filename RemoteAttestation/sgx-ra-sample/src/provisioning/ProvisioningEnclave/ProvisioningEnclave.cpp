@@ -34,19 +34,19 @@
 #include <stdio.h> /* vsnprintf */
 #include <string.h>
 #include <sgx_tkey_exchange.h>
-#include <sgx_utils.h>
-#include <sgx_tcrypto.h>
-#include <sgx_qve_header.h>
-#include <sgx_dcap_tvl.h> // to verify the QvE identity
-#include <time.h>
+#include "sgx_utils.h"
+#include "sgx_tcrypto.h"
+#include "sgx_qve_header.h"
+#include "sgx_dcap_tvl.h" // to verify the QvE identity
+#include "time.h"
 
-#include "provisioning/ProvisioningEnclave/rsa.h"
-#include "common/crypto.h"
-#include "common/enclave_verify.h"
-#include "common/remote_attestation.h"
-#include "policy.h"
+#include "rsa.h"
+#include "../../common/crypto.h"
+#include "../../common/enclave_verify.h"
+#include "../../common/remote_attestation.h"
+#include "../../policy.h"
 
-#include "../keys/bootstrap_public.h"
+#include "../../../keys/bootstrap_public.h"
 
 EVP_PKEY *provisioning_private_key;
 

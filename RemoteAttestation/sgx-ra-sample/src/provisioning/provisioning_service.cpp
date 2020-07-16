@@ -33,11 +33,11 @@ in the License.
 #include <sgx_report.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include "common.h"
-#include "common/hexutil.h"
-#include "common/msgio.h"
-#include "protocol.h"
-#include "provisioning/quote_verify.h"
+#include "../common.h"
+#include "../common/hexutil.h"
+#include "../common/msgio.h"
+#include "../protocol.h"
+#include "quote_verify.h"
 #include "ProvisioningEnclave_u.h"
 
 using namespace std;

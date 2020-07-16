@@ -36,9 +36,9 @@
 #include <sgx_utils.h>
 #include <sgx_tcrypto.h>
 
-#include "common/crypto.h"
-#include "common/byteorder.h"
-#include "common/remote_attestation.h"
+#include "crypto.h"
+#include "byteorder.h"
+#include "remote_attestation.h"
 
 ra_session_t ra_session = {0};
 
