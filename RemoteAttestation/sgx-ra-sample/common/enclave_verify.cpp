@@ -7,15 +7,6 @@
 
 bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t* p_supplemental_data)
 {
-	// Interpret the QVE result
-    time_t tcbLevelDate = p_supplemental_data->tcb_level_date_tag;
-
-    // TODO: improve this
-    // Hardcode the minimal date accepted
-
-	// mktime is not supported inside enclaves so we use a timestamp
-    time_t minTcbLevelDate = 1557878400; // 15 May 2019
-
     //check verification result
     //
     switch (verification_result)
@@ -25,18 +16,8 @@ bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t*
         // Verification completed successfully.
 
         return true;
-    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED: // TODO: do not accept this status (Hyperthreading must be disabled on the machine, see https://software.intel.com/security-software-guidance/software-guidance/l1-terminal-fault)
+    case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED:
     case SGX_QL_QV_RESULT_OUT_OF_DATE:
-        // The CPU this was tested on was not up to date... so we adopt a less trict policy
-
-        if (minTcbLevelDate <= tcbLevelDate) {
-            // ok...
-            return true;
-        } else {
-            // too old...
-	        return false;
-        }
-        break;
     case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
     case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
         // Verification completed with Non-terminal result

@@ -6,6 +6,11 @@ RUN apt-get update && apt-get install -y \
 # Set up Intel repository
 RUN echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' > /etc/apt/sources.list.d/intel-sgx.list
 RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
+
+# Microsoft repository (used to install Azure DCAP client)
+RUN echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/18.04/prod bionic main" | tee /etc/apt/sources.list.d/msprod.list
+RUN wget -qO - https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+
 RUN apt-get update
 
 
@@ -53,11 +58,8 @@ RUN make
 
 
 FROM sgxbase as sgxruntime
-RUN apt-get install -y libsgx-dcap-ql-dev libsgx-dcap-default-qpl-dev libsgx-uae-service
-
-# We're using a local server with an invalid https certificate
-RUN echo 'USE_SECURE_CERT=FALSE' >> /etc/sgx_default_qcnl.conf # to access pccs https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs
-
+# Azure DCAP client replaces the PCCS server by an Azure internal service
+RUN apt-get install -y libsgx-dcap-ql-dev libsgx-uae-service azure-dcap-client
 
 ## AESM services
 FROM sgxruntime as aesm
