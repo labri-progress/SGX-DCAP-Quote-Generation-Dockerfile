@@ -35,7 +35,6 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
     sgx_launch_token_t token = { 0 };
 
     //set nonce
-    //
     memcpy(p_qve_report_info.nonce.rand, rand_nonce, sizeof(rand_nonce));
 
     sgx_status_t get_target_info_ret;
@@ -47,8 +46,7 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
         printf("\tInfo: get target info successfully returned.\n");
     }
 
-    //call DCAP quote verify library to set QvE loading policy
-    //
+    // call DCAP quote verify library to set QvE loading policy
     dcap_ret = sgx_qv_set_enclave_load_policy(SGX_QL_DEFAULT);
     if (dcap_ret == SGX_QL_SUCCESS) {
         printf("\tInfo: sgx_qv_set_enclave_load_policy successfully returned.\n");
@@ -58,8 +56,7 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
     }
 
 
-    //call DCAP quote verify library to get supplemental data size
-    //
+    // call DCAP quote verify library to get supplemental data size
     dcap_ret = sgx_qv_get_quote_supplemental_data_size(&supplemental_data_size);
     if (dcap_ret == SGX_QL_SUCCESS && supplemental_data_size == sizeof(sgx_ql_qv_supplemental_t)) {
         printf("\tInfo: sgx_qv_get_quote_supplemental_data_size successfully returned.\n");
@@ -70,15 +67,12 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
         supplemental_data_size = 0;
     }
 
-    //set current time. This is only for sample purposes, in production mode a trusted time should be used.
-    //
+    // set current time. We use this time to have a more accurate verification when the Provisioning Service can be trusted but when it cannot, the policy
+    // enforces an expiration occuring after the time of compilation.
     current_time = time(NULL);
 
 
     //call DCAP quote verify library for quote verification
-    //here you can choose 'trusted' or 'untrusted' quote verification by specifying parameter 'p_qve_report_info'
-    //if 'p_qve_report_info' is NOT NULL, this API will call Intel QvE to verify quote
-    //if 'p_qve_report_info' is NULL, this API will call 'untrusted quote verify lib' to verify quote, this mode doesn't rely on SGX capable system, but the results can not be cryptographically authenticated
     dcap_ret = sgx_qv_verify_quote(
         quote, (uint32_t)quote_size,
         NULL,
@@ -97,8 +91,7 @@ int ecdsa_quote_verification(sgx_enclave_id_t eid, uint8_t *quote, uint32_t quot
     }
 
 
-    //call SampleISVEnclave to verify QvE's report and QvE Identity
-    //
+    // call the Provisioning Enclave to verify QvE's report and QvE Identity
     sgx_ret = ecall_verify_report(eid,
             &verify_report_ret,
             &p_qve_report_info,

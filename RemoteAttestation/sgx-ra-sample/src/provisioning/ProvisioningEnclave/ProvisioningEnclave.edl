@@ -36,7 +36,7 @@ enclave {
     include "sgx_key_exchange.h"
   	include "sgx_tkey_exchange.h"
     include "sgx_tcrypto.h"
-    
+
     include "sgx_qve_header.h"
     include "sgx_ql_quote.h"
 

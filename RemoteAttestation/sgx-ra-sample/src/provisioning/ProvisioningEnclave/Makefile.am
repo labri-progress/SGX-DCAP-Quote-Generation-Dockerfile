@@ -45,6 +45,9 @@ include $(top_srcdir)/build-aux/sgx_enclave.am
 
 # SGX_EDGER8R_FLAGS=
 
+# Include a timestamp in order to only accept PCK certificates emitted after the moment this file was compiled
+AM_CPPFLAGS += -DUNIX_TIMESTAMP=$$(echo $$(date +%s))
+
 ## The name of your enclave, enclave config file, and private key
 ## file go in these variables. The ENCLAVE variable creates the
 ## following automake target defn:
