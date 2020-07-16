@@ -2,8 +2,8 @@
 #include <stdlib.h> // strtol
 #include <sgx_ql_quote.h>
 #include <sgx_qve_header.h>
-#include "common/enclave_verify.h"
-#include "policy.h"
+#include "enclave_verify.h"
+#include "../policy.h"
 
 bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t* p_supplemental_data)
 {

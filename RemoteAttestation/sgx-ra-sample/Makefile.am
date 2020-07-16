@@ -33,7 +33,7 @@ SUBDIRS = src/client/Enclave src/provisioning/ProvisioningEnclave
 
 ## Supply additional flags to edger8r here.
 ##
-# SGX_EDGER8R_FLAGS=--search-path src/
+SGX_EDGER8R_FLAGS=--search-path src/
 
 
 ## Needed to make our pattern rule work
@@ -65,7 +65,7 @@ src/provisioning/ProvisioningEnclave/ProvisioningEnclave.signed.so: policy
 
 AM_CXXFLAGS = -std=c++11
 
-AM_CPPFLAGS += -fno-builtin-memset @OPENSSL_CPPFLAGS@ -I src/
+AM_CPPFLAGS += -fno-builtin-memset @OPENSSL_CPPFLAGS@
 
 ## Additional targets to remove with 'make clean'. You must list
 ## any edger8r generated files here.

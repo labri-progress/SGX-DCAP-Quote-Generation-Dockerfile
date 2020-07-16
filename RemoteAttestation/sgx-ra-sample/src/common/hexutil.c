@@ -15,7 +15,7 @@ in the License.
 
 */
 
-#include "common/hexutil.h"
+#include "hexutil.h"
 #include <sys/types.h>
 #include <stdlib.h>
 #include <stdio.h>

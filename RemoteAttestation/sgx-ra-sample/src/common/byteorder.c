@@ -18,7 +18,7 @@ in the License.
 
 #include <sys/types.h>
 #include <inttypes.h>
-#include "common/byteorder.h"
+#include "byteorder.h"
 
 /*
  * Reverse the bytes in an array. Can do this in-place (src == dest)
@@ -45,3 +45,4 @@ void reverse_bytes(void *dest, void *src, size_t len)
 		for (i= 0; i< len; ++i, ++sp, --dp) *dp= *sp;
 	}
 }
+
