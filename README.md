@@ -11,8 +11,16 @@ Installing the SGX DCAP Driver
 --------------------------
 
 To ease the installation of the SGX DCAP Driver, you may run the following command at the root of this repository:
+
 ```
-sudo ./install_driver.sh
+sudo ./install_dcap_driver.sh
 ```
 
 It parses Intel's website in order to find the latest DCAP driver available, checks its SHA256 sum and installs it.
+
+If using a CPU with no (or disabled) FLC, use:
+
+```
+sudo ./install_legacy_driver.sh
+```
+
