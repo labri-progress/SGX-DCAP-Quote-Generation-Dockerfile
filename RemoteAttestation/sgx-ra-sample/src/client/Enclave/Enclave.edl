@@ -15,8 +15,6 @@ in the License.
 
 */
 
-#include "config.h"
-
 enclave {
 	include "sgx_trts.h"
 	include "sgx_utils.h"

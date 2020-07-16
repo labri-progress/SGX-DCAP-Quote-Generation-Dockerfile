@@ -62,8 +62,6 @@ ENCLAVE_KEY=$(top_srcdir)/keys/enclave_signing_private.pem
 ## AM_CPPFLAGS +=
 ## AM_CXXFLAGS +=
 
-AM_CPPFLAGS += -I..
-
 ## Override LIBS coming from the app configuration, as they don't
 ## apply to the enclave.
 

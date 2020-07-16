@@ -33,7 +33,7 @@ SUBDIRS = src/client/Enclave src/provisioning/ProvisioningEnclave
 
 ## Supply additional flags to edger8r here.
 ##
-# SGX_EDGER8R_FLAGS=--search-path src/
+SGX_EDGER8R_FLAGS=--search-path src/
 
 
 ## Needed to make our pattern rule work

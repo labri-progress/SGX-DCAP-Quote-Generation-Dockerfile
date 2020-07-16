@@ -33,7 +33,7 @@ using namespace std;
 #include "../common.h"
 #include "../protocol.h"
 #include "../sgx_detect.h"
-#include "../../config.h"
+#include "../config.h"
 #include "Enclave_u.h"
 #include "../common/hexutil.h"
 #include "../common/msgio.h"

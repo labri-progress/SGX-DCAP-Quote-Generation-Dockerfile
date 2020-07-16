@@ -31,7 +31,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
 
-#include "../config.h"
+#include "config.h"
 #ifdef UAE_SERVICE_HAS_BOOL
 typedef unsigned char bool;
 #endif
