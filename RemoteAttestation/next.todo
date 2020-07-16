@@ -1,0 +1,8 @@
+* We must use a trusted time in `quote_verify.cpp`. This time is used to check the expiration date of PCK certificates.
+  A solution could be to provide a base date during bootstrap and then use `sgx_get_trusted_time` to get a relative date from this base.
+
+* Update the `qve_isvsvn_threshold` when needed in `ProvisioningEnclave` (or retrieve it from the PCCS server).
+
+* Send the required secrets to the services (a random secret is currently sent).
+
+* Add an API to fetch the services public key from clients.
