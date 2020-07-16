@@ -88,7 +88,7 @@ common = src/common.cpp src/common/hexutil.c src/common/msgio.cpp
 
 ## client
 
-client_SOURCES = src/client/client.cpp src/sgx_detect_linux.c src/sgx_stub.c \
+client_SOURCES = src/client/client.cpp src/sgx_detect_linux.c src/sgx_stub.c src/client/httplib.cpp \
 	$(common)
 nodist_client_SOURCES = Enclave_u.c Enclave_u.h
 EXTRA_client_DEPENDENCIES = Enclave.signed.so

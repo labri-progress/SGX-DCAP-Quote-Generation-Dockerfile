@@ -1,21 +1,3 @@
-/*
-
-Copyright 2018 Intel Corporation
-
-This software and the related documents are Intel copyrighted materials,
-and your use of them is governed by the express license under which they
-were provided to you (License). Unless the License provides otherwise,
-you may not use, modify, copy, publish, distribute, disclose or transmit
-this software or the related documents without Intel's prior written
-permission.
-
-This software and the related documents are provided as is, with no
-express or implied warranties, other than those that are expressly stated
-in the License.
-
-*/
-
-
 using namespace std;
 
 #include <stdlib.h>
@@ -30,6 +12,7 @@ using namespace std;
 #include <sgx_uae_service.h>
 #include <sgx_ukey_exchange.h>
 #include <string>
+#include <iostream>
 #include "common.h"
 #include "protocol.h"
 #include "sgx_detect.h"
@@ -37,6 +20,9 @@ using namespace std;
 #include "Enclave_u.h"
 #include "common/hexutil.h"
 #include "common/msgio.h"
+
+// this lib come from [here](https://github.com/yhirose/cpp-httplib)
+#include "httplib.h"
 
 #define MAX_LEN 80
 
@@ -143,10 +129,19 @@ int do_attestation(sgx_enclave_id_t eid, config_t *config);
 char debug= 0;
 char verbose= 0;
 
+using namespace httplib;
+using namespace std;
+
+// Use "0.0.0.0" for the server to be opened to LAN
+const string server = "0.0.0.0";
+const int port = 1234;
+
+#define MAX_LENGTH 1000
+
+
 #define ENCLAVE_NAME "Enclave.signed.so"
 
-int main (int argc, char *argv[])
-{
+int main (int argc, char *argv[]) {
 	config_t config;
 	sgx_launch_token_t token= { 0 };
 	sgx_status_t status;
@@ -275,6 +270,34 @@ int main (int argc, char *argv[])
 	}
 
 	do_attestation(eid, &config);
+
+    cout << "Setting up HTTP server...";
+
+	Server svr;
+
+	svr.Get(R"(/reverse/([a-z]+))", [&](const Request& req, Response& res) {
+		auto word = req.matches[1];
+
+		string reversed;
+		string s(word);
+		char *buffer = const_cast<char*>(s.c_str());
+		int status = 0;
+		ecall_reverse_enclave(eid, &status, buffer, s.length());
+		reversed = std::string(buffer);
+
+		res.set_content(reversed, "text/plain");
+	});
+
+	svr.Get("/stop", [&](const Request& req, Response& res) {
+		cout << "Stopping server...";
+		svr.stop();
+		cout << "done!" << endl;
+	});
+
+    cout << "ok! Service will now keep listening until stopped." << endl;
+
+	svr.listen(server.c_str(), port);
+
 
 	return 0;
 }

@@ -71,3 +71,32 @@ sgx_status_t enclave_ra_close(sgx_ra_context_t ctx)
         ret = sgx_ra_close(ctx);
         return ret;
 }
+
+int ecall_reverse_enclave(char *str, int len) {
+    if (str == 0) {
+        return -1;
+    }
+
+    if (*str == 0) {
+        return -2;
+    }
+
+    /* get range */
+    char *start = str;
+    char *end = start + len - 1; /* -1 for \0 */
+    char temp;
+
+    /* reverse */
+    while (end > start) {
+        /* swap */
+        temp = *start;
+        *start = *end;
+        *end = temp;
+
+        /* move */
+        ++start;
+        --end;
+    }
+    
+    return 0;
+}

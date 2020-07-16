@@ -48,7 +48,7 @@ RUN apt-get install -y libsgx-dcap-ql-dev
 COPY ./sgx-ra-sample .
 
 RUN ./bootstrap
-RUN ./configure # --disable-dcap
+RUN ./configure --disable-dcap
 RUN make
 
 
