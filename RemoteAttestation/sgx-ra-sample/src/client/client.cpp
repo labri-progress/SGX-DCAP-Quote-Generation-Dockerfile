@@ -18,8 +18,6 @@ in the License.
 
 using namespace std;
 
-#include "config.h"
-#include "Enclave_u.h"
 #include <stdlib.h>
 #include <limits.h>
 #include <stdio.h>
@@ -32,12 +30,13 @@ using namespace std;
 #include <sgx_uae_service.h>
 #include <sgx_ukey_exchange.h>
 #include <string>
-#include "common.h"
-#include "protocol.h"
-#include "sgx_detect.h"
-#include "common/hexutil.h"
-#include "common/msgio.h"
-#include "logfile.h"
+#include "../common.h"
+#include "../protocol.h"
+#include "../sgx_detect.h"
+#include "../../config.h"
+#include "Enclave_u.h"
+#include "../common/hexutil.h"
+#include "../common/msgio.h"
 
 #define MAX_LEN 80
 
@@ -158,10 +157,6 @@ int main (int argc, char *argv[])
 	EVP_PKEY *service_public_key= NULL;
 	char flag_stdio= 0;
 
-	/* Create a logfile to capture debug output and actual msg data */
-	fplog = create_logfile("client.log");
-	dividerWithText(fplog, "Client Log Timestamp");
-
 	const time_t timeT = time(NULL);
 	struct tm lt, *ltp;
 
@@ -171,16 +166,6 @@ int main (int argc, char *argv[])
 		return 1;
 	}
 	lt= *ltp;
-
-	fprintf(fplog, "%4d-%02d-%02d %02d:%02d:%02d\n",
-		lt.tm_year + 1900,
-		lt.tm_mon + 1,
-		lt.tm_mday,
-		lt.tm_hour,
-		lt.tm_min,
-		lt.tm_sec);
-	divider(fplog);
-
 
 	memset(&config, 0, sizeof(config));
 
@@ -291,8 +276,6 @@ int main (int argc, char *argv[])
 
 	do_attestation(eid, &config);
 
-	close_logfile(fplog);
-
 	return 0;
 }
 
@@ -374,35 +357,21 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 	if ( status != SGX_SUCCESS ) {
 		enclave_ra_close(eid, &sgxrv, ra_ctx);
 		fprintf(stderr, "sgx_ra_get_msg1: %08x\n", status);
-		fprintf(fplog, "sgx_ra_get_msg1: %08x\n", status);
 		delete msgio;
 		return 1;
 	}
 
 	if ( verbose ) {
 		dividerWithText(stderr,"Msg1 Details");
-		dividerWithText(fplog,"Msg1 Details");
 		fprintf(stderr,   "msg1.g_a.gx = ");
-		fprintf(fplog,   "msg1.g_a.gx = ");
 		print_hexstring(stderr, msg1.g_a.gx, 32);
-		print_hexstring(fplog, msg1.g_a.gx, 32);
 		fprintf(stderr, "\nmsg1.g_a.gy = ");
-		fprintf(fplog, "\nmsg1.g_a.gy = ");
 		print_hexstring(stderr, msg1.g_a.gy, 32);
-		print_hexstring(fplog, msg1.g_a.gy, 32);
 		fprintf(stderr, "\nmsg1.gid    = ");
-		fprintf(fplog, "\nmsg1.gid    = ");
 		print_hexstring(stderr, msg1.gid, 4);
-		print_hexstring(fplog, msg1.gid, 4);
 		fprintf(stderr, "\n");
-		fprintf(fplog, "\n");
 		divider(stderr);
-		divider(fplog);
 	}
-
-	dividerWithText(fplog, "Msg1 ==> SP");
-	fsend_msg(fplog, &msg1, sizeof(msg1));
-	divider(fplog);
 
 	dividerWithText(stderr, "Copy/Paste Msg1 Below to SP");
 	msgio->send(&msg1, sizeof(msg1));
@@ -431,54 +400,30 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 
 	if ( verbose ) {
 		dividerWithText(stderr, "Msg2 Details");
-		dividerWithText(fplog, "Msg2 Details (Received from SP)");
 		fprintf(stderr,   "msg2.g_b.gx      = ");
-		fprintf(fplog,   "msg2.g_b.gx      = ");
 		print_hexstring(stderr, &msg2->g_b.gx, sizeof(msg2->g_b.gx));
-		print_hexstring(fplog, &msg2->g_b.gx, sizeof(msg2->g_b.gx));
 		fprintf(stderr, "\nmsg2.g_b.gy      = ");
-		fprintf(fplog, "\nmsg2.g_b.gy      = ");
 		print_hexstring(stderr, &msg2->g_b.gy, sizeof(msg2->g_b.gy));
-		print_hexstring(fplog, &msg2->g_b.gy, sizeof(msg2->g_b.gy));
 		fprintf(stderr, "\nmsg2.spid        = ");
-		fprintf(fplog, "\nmsg2.spid        = ");
 		print_hexstring(stderr, &msg2->spid, sizeof(msg2->spid));
-		print_hexstring(fplog, &msg2->spid, sizeof(msg2->spid));
 		fprintf(stderr, "\nmsg2.quote_type  = ");
-		fprintf(fplog, "\nmsg2.quote_type  = ");
 		print_hexstring(stderr, &msg2->quote_type, sizeof(msg2->quote_type));
-		print_hexstring(fplog, &msg2->quote_type, sizeof(msg2->quote_type));
 		fprintf(stderr, "\nmsg2.kdf_id      = ");
-		fprintf(fplog, "\nmsg2.kdf_id      = ");
 		print_hexstring(stderr, &msg2->kdf_id, sizeof(msg2->kdf_id));
-		print_hexstring(fplog, &msg2->kdf_id, sizeof(msg2->kdf_id));
 		fprintf(stderr, "\nmsg2.sign_ga_gb  = ");
-		fprintf(fplog, "\nmsg2.sign_ga_gb  = ");
 		print_hexstring(stderr, &msg2->sign_gb_ga, sizeof(msg2->sign_gb_ga));
-		print_hexstring(fplog, &msg2->sign_gb_ga, sizeof(msg2->sign_gb_ga));
 		fprintf(stderr, "\nmsg2.mac         = ");
-		fprintf(fplog, "\nmsg2.mac         = ");
 		print_hexstring(stderr, &msg2->mac, sizeof(msg2->mac));
-		print_hexstring(fplog, &msg2->mac, sizeof(msg2->mac));
 		fprintf(stderr, "\nmsg2.sig_rl_size = ");
-		fprintf(fplog, "\nmsg2.sig_rl_size = ");
 		print_hexstring(stderr, &msg2->sig_rl_size, sizeof(msg2->sig_rl_size));
-		print_hexstring(fplog, &msg2->sig_rl_size, sizeof(msg2->sig_rl_size));
 		fprintf(stderr, "\nmsg2.sig_rl      = ");
-		fprintf(fplog, "\nmsg2.sig_rl      = ");
 		print_hexstring(stderr, &msg2->sig_rl, msg2->sig_rl_size);
-		print_hexstring(fplog, &msg2->sig_rl, msg2->sig_rl_size);
 		fprintf(stderr, "\n");
-		fprintf(fplog, "\n");
 		divider(stderr);
-		divider(fplog);
 	}
 
 	if ( debug ) {
-		fprintf(stderr, "+++ msg2_size = %zu\n",
-			sizeof(sgx_ra_msg2_t)+msg2->sig_rl_size);
-		fprintf(fplog, "+++ msg2_size = %zu\n",
-			sizeof(sgx_ra_msg2_t)+msg2->sig_rl_size);
+		fprintf(stderr, "+++ msg2_size = %zu\n", sizeof(sgx_ra_msg2_t)+msg2->sig_rl_size);
 	}
 
 	/* Process Msg2, Get Msg3  */
@@ -496,7 +441,6 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 	if ( status != SGX_SUCCESS ) {
 		enclave_ra_close(eid, &sgxrv, ra_ctx);
 		fprintf(stderr, "sgx_ra_proc_msg2: %08x\n", status);
-		fprintf(fplog, "sgx_ra_proc_msg2: %08x\n", status);
 
 		delete msgio;
 		return 1;
@@ -504,42 +448,25 @@ int do_attestation (sgx_enclave_id_t eid, config_t *config)
 
 	if ( debug ) {
 		fprintf(stderr, "+++ msg3_size = %u\n", msg3_sz);
-		fprintf(fplog, "+++ msg3_size = %u\n", msg3_sz);
 	}
 
 	if ( verbose ) {
 		dividerWithText(stderr, "Msg3 Details");
-		dividerWithText(fplog, "Msg3 Details");
 		fprintf(stderr,   "msg3.mac         = ");
-		fprintf(fplog,   "msg3.mac         = ");
 		print_hexstring(stderr, msg3->mac, sizeof(msg3->mac));
-		print_hexstring(fplog, msg3->mac, sizeof(msg3->mac));
 		fprintf(stderr, "\nmsg3.g_a.gx      = ");
-		fprintf(fplog, "\nmsg3.g_a.gx      = ");
 		print_hexstring(stderr, msg3->g_a.gx, sizeof(msg3->g_a.gx));
-		print_hexstring(fplog, msg3->g_a.gx, sizeof(msg3->g_a.gx));
 		fprintf(stderr, "\nmsg3.g_a.gy      = ");
-		fprintf(fplog, "\nmsg3.g_a.gy      = ");
 		print_hexstring(stderr, msg3->g_a.gy, sizeof(msg3->g_a.gy));
-		print_hexstring(fplog, msg3->g_a.gy, sizeof(msg3->g_a.gy));
 		fprintf(stderr, "\nmsg3.quote       = ");
-		fprintf(fplog, "\nmsg3.quote       = ");
 		print_hexstring(stderr, msg3->quote, msg3_sz-sizeof(sgx_ra_msg3_t));
-		print_hexstring(fplog, msg3->quote, msg3_sz-sizeof(sgx_ra_msg3_t));
-		fprintf(fplog, "\n");
 		fprintf(stderr, "\n");
-		fprintf(fplog, "\n");
 		divider(stderr);
-		divider(fplog);
 	}
 
 	dividerWithText(stderr, "Copy/Paste Msg3 Below to SP");
 	msgio->send(msg3, msg3_sz);
 	divider(stderr);
-
-	dividerWithText(fplog, "Msg3 ==> SP");
-	fsend_msg(fplog, msg3, msg3_sz);
-	divider(fplog);
 
 	if ( msg3 ) {
 		free(msg3);

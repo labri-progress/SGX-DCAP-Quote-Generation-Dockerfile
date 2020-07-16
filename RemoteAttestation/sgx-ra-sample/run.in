@@ -24,19 +24,6 @@ then
 	fi
 fi
 
-# Do we need to add curl's libdir?
-
-CURL_LIBDIR=@CURL_LIBDIR@
-if [ "$CURL_LIBDIR" != "" ]
-then
-	if [ "$LD_LIBRARY_PATH" = "" ]
-	then
-		export LD_LIBRARY_PATH=$OPENSSL_LIBDIR
-	else
-		export LD_LIBRARY_PATH=$OPENSSL_LIBDIR:$LD_LIBRARY_PATH
-	fi
-fi
-
 #----------------------------------------------------------------------------
 # Parse our settings file
 #----------------------------------------------------------------------------

@@ -16,7 +16,7 @@ in the License.
 */
 
 
-#include "config.h"
+#include "../config.h"
 #include <sgx_urts.h>
 #include <sgx_capable.h>
 #include "sgx_stub.h"
@@ -72,4 +72,3 @@ int get_sgx_support()
 	return sgx_support;
 #endif
 }
-

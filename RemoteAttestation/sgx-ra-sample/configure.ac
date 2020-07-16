@@ -92,8 +92,8 @@ AC_CONFIG_FILES([
 	run-provisioning:run.in
 	run-client:run.in
 	Makefile
-	Enclave/Makefile
-	ProvisioningEnclave/Makefile
+	src/client/Enclave/Makefile
+	src/provisioning/ProvisioningEnclave/Makefile
 ],[chmod -f 755 run-client run-provisioning run-bootstrap mrsigner.sh])
 
 AC_OUTPUT

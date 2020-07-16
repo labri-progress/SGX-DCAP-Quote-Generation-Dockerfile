@@ -53,7 +53,7 @@ SGX_EDGER8R_FLAGS=--search-path ..
 
 ENCLAVE=ProvisioningEnclave
 ENCLAVE_CONFIG=$(ENCLAVE).config.xml
-ENCLAVE_KEY=../keys/enclave_signing_private.pem
+ENCLAVE_KEY=$(top_srcdir)/keys/enclave_signing_private.pem
 
 
 ## Additional Automake flags needed to build the enclave.
@@ -69,18 +69,16 @@ AM_CPPFLAGS += -I..
 LIBS=
 
 ## Additional files to remove with 'make clean'. This list needs
-## to include your edger8r genreated files.
+## to include your edger8r generated files.
 
 CLEANFILES+= $(ENCLAVE)_t.c $(ENCLAVE)_t.h
 
 
-## Put your sources here. Don't forget to list the _t.c and _t.h
-## files. You can't use the $(ENCLAVE) variable in the build
-## target name (i.e., $(ENCLAVE)_SOURCES will not work).
+## Put your sources here. Don't forget to list the _t.c and _t.h files.
 
 ProvisioningEnclave_SOURCES = ProvisioningEnclave_t.c ProvisioningEnclave_t.h ProvisioningEnclave.cpp \
-		../common/remote_attestation.cpp ../common/remote_attestation.h ../common/byteorder.c ../common/byteorder.h \
-		../common/crypto.c ../common/crypto.h rsa.cpp rsa.h ../common/enclave_verify.cpp ../common/enclave_verify.h \
+		$(top_srcdir)/src/common/remote_attestation.cpp $(top_srcdir)/src/common/byteorder.c \
+		$(top_srcdir)/src/common/crypto.c rsa.cpp $(top_srcdir)/src/common/enclave_verify.cpp \
 		$(ENCLAVE_KEY) $(ENCLAVE_CONFIG)
 
 

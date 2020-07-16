@@ -16,7 +16,7 @@ in the License.
 */
 
 
-#include "config.h"
+#include "../../config.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -33,11 +33,10 @@ in the License.
 #include <sgx_report.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include "common.h"
-#include "common/hexutil.h"
-#include "common/msgio.h"
-#include "protocol.h"
-#include "logfile.h"
+#include "../common.h"
+#include "../common/hexutil.h"
+#include "../common/msgio.h"
+#include "../protocol.h"
 #include "quote_verify.h"
 #include "ProvisioningEnclave_u.h"
 
@@ -157,11 +156,6 @@ int main(int argc, char *argv[])
         {"stdio",					no_argument,		0, 'z'},
         { 0, 0, 0, 0 }
     };
-
-    /* Create a logfile to capture debug output and actual msg data */
-
-    fplog = create_logfile("provisioning_service.log");
-    fprintf(fplog, "Provisioning Service log started\n");
 
     /* Parse our options */
 
@@ -349,14 +343,9 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
     status= sgx_ra_get_msg1_ex(&selected_key_id, ra_ctx, *eid, sgx_ra_get_ga, &msg1);
     if ( status != SGX_SUCCESS ) {
         fprintf(stderr, "sgx_ra_get_msg1: %08x\n", status);
-        fprintf(fplog, "sgx_ra_get_msg1: %08x\n", status);
 
         return false;
     }
-
-    dividerWithText(fplog, "Msg1 ==> SP");
-    fsend_msg(fplog, &msg1, sizeof(msg1));
-    divider(fplog);
 
     dividerWithText(stderr, "Sending Msg1 Below to SP");
     eprintf("Sending msg1.\n");
@@ -395,7 +384,6 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
 
     if ( status != SGX_SUCCESS ) {
         fprintf(stderr, "sgx_ra_proc_msg2: %08x\n", status);
-        fprintf(fplog, "sgx_ra_proc_msg2: %08x\n", status);
 
         return false;
     }
@@ -403,10 +391,6 @@ bool do_initialization(MsgIO* msgio, sgx_ra_context_t ra_ctx)
     dividerWithText(stderr, "Sending Msg3 Below to SP");
     msgio->send(msg3, msg3_sz);
     divider(stderr);
-
-    dividerWithText(fplog, "Msg3 ==> SP");
-    fsend_msg(fplog, msg3, msg3_sz);
-    divider(fplog);
 
     if ( msg3 ) {
         free(msg3);
@@ -499,13 +483,9 @@ void do_provisioning(MsgIO* msgio)
     */
 
     dividerWithText(stderr, "Sending Msg2 Below to Client");
-    dividerWithText(fplog, "Msg2 (send to Client)");
 
     msgio->send_partial((void *) &msg2, sizeof(sgx_ra_msg2_t));
-    fsend_msg_partial(fplog, (void *) &msg2, sizeof(sgx_ra_msg2_t));
-
     msgio->send(&msg2.sig_rl, msg2.sig_rl_size);
-    fsend_msg(fplog, &msg2.sig_rl, msg2.sig_rl_size);
 
     edivider();
 
@@ -660,10 +640,7 @@ int process_msg3 (MsgIO *msgio, sgx_ra_msg1_t *msg1)
     /* vs. the entire structure as one send_msg() */
 
     msgio->send_partial((void *) msg4, sizeof(ra_msg4_t));
-    fsend_msg_partial(fplog, (void *) msg4, sizeof(ra_msg4_t));
-
     msgio->send((void*) msg4->secret, msg4->secret_size);
-    fsend_msg(fplog, (void*) msg4->secret, msg4->secret_size);
 
     edivider();
 

@@ -29,7 +29,7 @@ in the License.
 #include <string>
 #include "hexutil.h"
 #include "msgio.h"
-#include "common.h"
+#include "../common.h"
 
 using namespace std;
 

@@ -25,7 +25,6 @@ using namespace std;
 #include <string.h>
 #include <string>
 #include "common.h"
-#include "logfile.h"
 
 #define LINE_TYPE '-'
 #define LINE_SHORT_LEN 4
@@ -45,7 +44,6 @@ using namespace std;
 void edividerWithText (const char *text)
 {
 	dividerWithText(stderr, text);
-	if ( fplog != NULL ) dividerWithText(fplog, text);
 }
 
 void dividerWithText (FILE *fd, const char *text)
@@ -56,7 +54,6 @@ void dividerWithText (FILE *fd, const char *text)
 void edivider ()
 {
 	divider(stderr);
-	if ( fplog != NULL ) divider(fplog);
 }
 
 void divider (FILE * fd)
@@ -73,38 +70,10 @@ int eprintf (const char *format, ...)
 	rv= vfprintf(stderr, format, va);
 	va_end(va);
 
-	if ( fplog != NULL ) {
-		time_t ts;
-		struct tm timetm, *timetmp;
-		char timestr[TIMESTR_SIZE];
-
-		/* Don't timestamp a single "\n" */
-		if ( !(strlen(format) == 1 && format[0] == '\n') ) {
-			time(&ts);
-			timetmp= localtime(&ts);
-			if ( timetmp == NULL ) {
-				perror("localtime");
-				return 0;
-			}
-			timetm= *timetmp;
-
-			/* If you change this format, you _may_ need to change TIMESTR_SIZE */
-			if ( strftime(timestr, TIMESTR_SIZE, "%b %e %Y %T", &timetm) == 0 ) {
-				/* oops */
-				timestr[0]= 0;
-			}
-			fprintf(fplog, "%s ", timestr);
-		}
-		va_start(va, format);
-		rv= vfprintf(fplog, format, va);
-		va_end(va);
-	}
-
 	return rv;
 }
 
 int eputs (const char *s)
 {
-	if ( fplog != NULL ) fputs(s, fplog);
 	return fputs(s, stderr);
 }

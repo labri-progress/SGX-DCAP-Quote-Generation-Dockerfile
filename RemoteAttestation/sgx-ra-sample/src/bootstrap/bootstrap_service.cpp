@@ -16,7 +16,7 @@ in the License.
 */
 
 
-#include "config.h"
+#include "../../config.h"
 
 #include <stdlib.h>
 #include <limits.h>
@@ -27,27 +27,26 @@ in the License.
 #include <signal.h>
 #include <getopt.h>
 #include <unistd.h>
-#include <sgx_key_exchange.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include "common.h"
-#include "common/hexutil.h"
-#include "common/msgio.h"
-#include "protocol.h"
-#include "logfile.h"
 
-#include "policy.h"
-#include "sgx_ql_quote.h"
-#include "sgx_dcap_quoteverify.h"
-#include "sgx_qve_header.h"
-#include "sgx_tcrypto.h" // in order to use `sgx_rijndael128GCM_encrypt`
+#include <sgx_key_exchange.h>
+#include <sgx_ql_quote.h>
+#include <sgx_dcap_quoteverify.h>
+#include <sgx_qve_header.h>
 
-#include "common/crypto.h"
-#include "common/remote_attestation.h"
-#include "common/enclave_verify.h"
+#include "../protocol.h"
+#include "../common.h"
+#include "../common/hexutil.h"
+#include "../common/msgio.h"
+#include "../common/crypto.h"
+#include "../common/remote_attestation.h"
+#include "../common/enclave_verify.h"
 
-#include "keys/bootstrap_private.h" // This key is used to attest the bootstrap service when contacting the Provisioning Service
-#include "keys/provisioning_private.h"
+#include "../policy.h"
+
+#include "../../keys/bootstrap_private.h" // This key is used to attest the bootstrap service when contacting the Provisioning Service
+#include "../../keys/provisioning_private.h"
 
 using namespace std;
 
@@ -93,11 +92,6 @@ int main(int argc, char *argv[])
 		{"stdio",					no_argument,		0, 'z'},
 		{ 0, 0, 0, 0 }
 	};
-
-	/* Create a logfile to capture debug output and actual msg data */
-
-	fplog = create_logfile("bootstrap_service.log");
-	fprintf(fplog, "Bootstrap Service log started\n");
 
 	/* Parse our options */
 
@@ -248,16 +242,10 @@ void do_bootstrap(MsgIO *msgio)
 	}
 
 	eprintf("Sending msg2.\n");
-	dividerWithText(fplog, "Sending msg2 to provisioning service.");
 
 	msgio->send_partial((void *) &msg2, sizeof(sgx_ra_msg2_t));
-	fsend_msg_partial(fplog, (void *) &msg2, sizeof(sgx_ra_msg2_t));
-
 	msgio->send(&msg2.sig_rl, msg2.sig_rl_size);
-	fsend_msg(fplog, &msg2.sig_rl, msg2.sig_rl_size);
 
-
-	dividerWithText(fplog, "Waiting msg3 reception.");
 	msgio->read((void **) &msg3, &msg3_size);
 
 	status = process_msg3(msg3, msg3_size);
@@ -354,6 +342,8 @@ bool validate_quote(sgx_ra_msg3_t *msg3, size_t msg3_size)
 	else {
 		printf("\tError: App: sgx_qv_verify_quote failed: 0x%04x\n", qve_ret);
 	}
+
+	printf("Result: 0x%08x\n", p_quote_verification_result);
 
 	return validate_qve_result(p_quote_verification_result, (sgx_ql_qv_supplemental_t*) p_supplemental_data);
 }

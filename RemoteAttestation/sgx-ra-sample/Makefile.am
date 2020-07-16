@@ -29,34 +29,34 @@ include $(top_srcdir)/build-aux/sgx_app.am
 # Allows to reference files in different directories
 AUTOMAKE_OPTIONS = subdir-objects
 
-SUBDIRS = Enclave ProvisioningEnclave
+SUBDIRS = src/client/Enclave src/provisioning/ProvisioningEnclave
 
 ## Supply additional flags to edger8r here.
 ##
-## SGX_EDGER8R_FLAGS=
+# SGX_EDGER8R_FLAGS=--search-path src/
 
 
 ## Needed to make our pattern rule work
 
-Enclave.edl: Enclave/Enclave.edl
+Enclave.edl: src/client/Enclave/Enclave.edl
 	ln -s $?
 
-Enclave.signed.so: Enclave/Enclave.signed.so
+Enclave.signed.so: src/client/Enclave/Enclave.signed.so
 	ln -s $?
 
-Enclave/Enclave.signed.so:
-	make -C Enclave
+src/client/Enclave/Enclave.signed.so:
+	make -C src/client/Enclave
 
 ## Needed to make our pattern rule work
 
-ProvisioningEnclave.edl: ProvisioningEnclave/ProvisioningEnclave.edl
+ProvisioningEnclave.edl: src/provisioning/ProvisioningEnclave/ProvisioningEnclave.edl
 	ln -s $?
 
-ProvisioningEnclave.signed.so: ProvisioningEnclave/ProvisioningEnclave.signed.so
+ProvisioningEnclave.signed.so: src/provisioning/ProvisioningEnclave/ProvisioningEnclave.signed.so
 	ln -s $?
 
-ProvisioningEnclave/ProvisioningEnclave.signed.so: policy
-	make -C ProvisioningEnclave
+src/provisioning/ProvisioningEnclave/ProvisioningEnclave.signed.so: policy
+	make -C src/provisioning/ProvisioningEnclave
 
 ## Additional automake variables
 ##
@@ -84,12 +84,11 @@ bin_PROGRAMS = client provisioning_service bootstrap_service mrsigner
 ## You can't use $(wildcard ...) with automake so all source files
 ## have to be explicitly listed.
 
-common = common.cpp common/hexutil.c \
-	common/msgio.cpp logfile.c
+common = src/common.cpp src/common/hexutil.c src/common/msgio.cpp
 
 ## client
 
-client_SOURCES = client.cpp sgx_detect_linux.c sgx_stub.c \
+client_SOURCES = src/client/client.cpp src/sgx_detect_linux.c src/sgx_stub.c \
 	$(common)
 nodist_client_SOURCES = Enclave_u.c Enclave_u.h
 EXTRA_client_DEPENDENCIES = Enclave.signed.so
@@ -115,7 +114,7 @@ client_LDADD=-l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SERVICE_LIB) \
 
 
 ## provisioning_service
-provisioning_service_SOURCES = provisioning_service.cpp quote_verify.cpp $(common)
+provisioning_service_SOURCES = src/provisioning/provisioning_service.cpp src/provisioning/quote_verify.cpp $(common)
 BUILT_SOURCES += policy ProvisioningEnclave_u.c ProvisioningEnclave_u.h
 EXTRA_provisioning_service_DEPENDENCIES = ProvisioningEnclave.signed.so
 
@@ -130,19 +129,19 @@ provisioning_service_LDADD= -l$(SGX_URTS_LIB) -lsgx_ukey_exchange -l$(SGX_UAE_SE
 
 ## bootstrap_service
 
-bootstrap_service_SOURCES = bootstrap_service.cpp $(common) common/remote_attestation.cpp common/crypto.c common/byteorder.c common/enclave_verify.cpp
+bootstrap_service_SOURCES = src/bootstrap/bootstrap_service.cpp $(common) src/common/remote_attestation.cpp src/common/crypto.c src/common/byteorder.c src/common/enclave_verify.cpp
 bootstrap_service_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@
 bootstrap_service_LDADD=-lsgx_dcap_ql -lsgx_dcap_quoteverify -lcrypto
 
 
 ## mrsigner (helper app)
 
-mrsigner_SOURCES = mrsigner.cpp common/hexutil.c common/crypto.c
+mrsigner_SOURCES = src/mrsigner/mrsigner.cpp src/common/hexutil.c src/common/crypto.c
 
 ## Extract the enclave SIGSTRUCT and use it to calculate MRSIGNER
-policy: mrsigner policy.in.h Enclave.signed.so
+policy: mrsigner src/policy.in.h Enclave.signed.so
 	$(SGX_SIGN) dump -cssfile enclave_sigstruct_raw -dumpfile /dev/null -enclave Enclave.signed.so
-	sed -e "s^@MRSIGNER@^`./mrsigner.sh enclave_sigstruct_raw`^" policy.in.h > policy.h
+	sed -e "s^@MRSIGNER@^`./mrsigner.sh enclave_sigstruct_raw`^" src/policy.in.h > src/policy.h
 	rm -f enclave_sigstruct_raw
 
 mrsigner_LDFLAGS= $(AM_LDFLAGS) @OPENSSL_LDFLAGS@

@@ -21,10 +21,11 @@ bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t*
     switch (verification_result)
     {
     case SGX_QL_QV_RESULT_OK:
-    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
+    case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED: // We assert we implemented the correct mitigations in the enclave
         // Verification completed successfully.
 
         return true;
+    case SGX_QL_QV_RESULT_CONFIG_NEEDED:
     case SGX_QL_QV_RESULT_OUT_OF_DATE_CONFIG_NEEDED: // TODO: do not accept this status (Hyperthreading must be disabled on the machine, see https://software.intel.com/security-software-guidance/software-guidance/l1-terminal-fault)
     case SGX_QL_QV_RESULT_OUT_OF_DATE:
         // The CPU this was tested on was not up to date... so we adopt a less trict policy
@@ -37,7 +38,6 @@ bool validate_qve_result(uint32_t verification_result, sgx_ql_qv_supplemental_t*
 	        return false;
         }
         break;
-    case SGX_QL_QV_RESULT_SW_HARDENING_NEEDED:
     case SGX_QL_QV_RESULT_CONFIG_AND_SW_HARDENING_NEEDED:
         // Verification completed with Non-terminal result
         return false;

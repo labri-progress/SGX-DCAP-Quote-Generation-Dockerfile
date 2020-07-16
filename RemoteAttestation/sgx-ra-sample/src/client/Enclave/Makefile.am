@@ -44,7 +44,7 @@ include $(top_srcdir)/build-aux/sgx_enclave.am
 
 ## Supply additional flags to edger8r here.
 
-SGX_EDGER8R_FLAGS=--search-path ..
+SGX_EDGER8R_FLAGS=--search-path $(top_srcdir)
 
 ## The name of your enclave, enclave config file, and private key
 ## file go in these variables. The ENCLAVE variable creates the
@@ -54,7 +54,7 @@ SGX_EDGER8R_FLAGS=--search-path ..
 
 ENCLAVE=Enclave
 ENCLAVE_CONFIG=$(ENCLAVE).config.xml
-ENCLAVE_KEY=../keys/enclave_signing_private.pem
+ENCLAVE_KEY=$(top_srcdir)/keys/enclave_signing_private.pem
 
 
 ## Additional Automake flags needed to build the enclave.
@@ -80,7 +80,7 @@ CLEANFILES+= $(ENCLAVE)_t.c $(ENCLAVE)_t.h
 ## target name (i.e., $(ENCLAVE)_SOURCES will not work).
 
 Enclave_SOURCES = Enclave_t.c Enclave_t.h Enclave.cpp \
-	../common/crypto.c ../common/crypto.h \ # to load the Provisioning public key
+	../../common/crypto.c ../../common/crypto.h \ # to load the Provisioning public key
 	$(ENCLAVE_KEY) $(ENCLAVE_CONFIG)
 
 
