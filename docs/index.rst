@@ -132,5 +132,90 @@ and it is instead attested using ECDSA signature: its public key is shipped in t
 is thus able to verify it is communicating with the correct provisioner.
 
 1. The enclave generates a pair of session keys and sends its public key to the remote attester.
-2. The remote party send its public key and a proof of possession of the shared key. It signs the result with its permanent private key.
+2. The remote party send its session public key and a proof of possession of the shared key. It signs the result with its permanent private key.
 3. The enclave requests a quote containing the hash of its session public key to the Quoting Enclave, and then sends it to the remote party.
+
+
+Using the SDK
+=============
+
+Installing the SDK
+------------------
+
+You may either compile the SDK yourself or use the installer provided by Intel.
+
+- In case you want to compile it, you should follow the guide provided `here<https://github.com/intel/linux-sgx/tree/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15>`_. |br|
+  This is useful in case you want to patch the SDK like in `this repository<https://github.com/labri-progress/linux-sgx>`_ which contains a custom quoting enclave which
+  shortcuts SGX DCAP attestation (we are not using it in any of our projects however, this is here for demonstration and this Quoting Enclave is just here for testing).
+
+  Intel provides also a `Dockerfile<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/docker/build/Dockerfile>`_ which automatically compiles
+  the SDK for you. However, it does not include the last CVE mitigations and thus **must only be used for testing purposes**.
+
+- A safer way to install the SDK is to use the installers provided on `Intel's repository<https://download.01.org/intel-sgx/>`_. |br|
+  In this version, you must install manually the PSW (SGX Platform SoftWare) packages in order to be able to attest enclaves.
+
+  The installation of the SDK using the installer, see for instance this `Dockerfile <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/f4d61738d251815f55ef53470c520a9c8666ba28/RemoteAttestation/Dockerfile#L12-L27>`_. |br|
+  To install the PSW packages, a simple solution when using Ubuntu is to setup Intel's repository (see `this example <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/f4d61738d251815f55ef53470c520a9c8666ba28/RemoteAttestation/Dockerfile#L7-L9>`_) and
+  then install them using apt (see `this <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/f4d61738d251815f55ef53470c520a9c8666ba28/RemoteAttestation/Dockerfile#L56-L59>`_).
+
+The Runtime Environment
+-----------------------
+
+The SDK is only required when compiling your application, you don't need it in your production environment. However the PSW packages provide shared libraries which must be present at runtime (you may browse `Intel's repository <https://download.01.org/intel-sgx/sgx_repo/ubuntu>`_ to select the packages you need).
+
+Notably, the `AESM services <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/f4d61738d251815f55ef53470c520a9c8666ba28/RemoteAttestation/Dockerfile#L63-L75>`_ run in a separate instance in our Dockerfile and are used for the remote attestation to communicate with the Quoting Enclave.
+
+In any case, in order to run your application using SGX, you must install an SGX driver.
+
+There are two versions of it:
+
+- the legacy one from 2016 which works on all platforms (check out `this installer <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/f4d61738d251815f55ef53470c520a9c8666ba28/install_legacy_driver.sh>`_).
+- the "out-of-tree" driver which only works on CPUs supporting the Flexible Launch Control feature (you may run `this code <https://github.com/ayeks/SGX-hardware/blob/master/test-sgx.c>`_ to check this, section "sgx launch control"). |br|
+  You may install its latest version using `this executable <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/f4d61738d251815f55ef53470c520a9c8666ba28/install_dcap_driver.sh>`_.
+
+  The advantage of this new driver is the support of a new remote attestation method based called DCAP which requires less queries to Intel servers and is thus more efficient. We'll detail it later in this document.
+
+Note: these two drivers expose different devices, the first exposes ``/dev/isgx``, while the second exposes ``/dev/sgx/provision`` and ``/dev/sgx/enclave``. |br|
+This is important when using Docker, see `this example <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/f4d61738d251815f55ef53470c520a9c8666ba28/RemoteAttestation/build_and_run_aesm.sh#L5-L9>`_.
+
+
+Building an enclave
+-------------------
+
+You may have a look at the `SampleEnclave Makefile<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/SampleEnclave/Makefile>`_.
+
+The enclave is compiled as a separate shared library which is then configured and signed using SGX Edger8r. |br|
+Both your application and your enclave must include headers from `/opt/intel/sgxsdk/include`.
+
+There are various libraries you may want to link to your application:
+
+- ``-lsgx_ukey_exchange`` when attesting remotely
+- ``-lsgx_dcap_ql -lsgx_dcap_quoteverify -lcrypto`` in order to verify quotes in the trusted third party when using SGX DCAP
+- ``-lsgx_usgxssl`` if you want to use OpenSSL in your enclave
+
+And for your enclaves:
+
+- ``-lsgx_tkey_exchange`` to attest it remotely
+- ``-Wl,--whole-archive -lsgx_tsgxssl	-Wl,--no-whole-archive -lsgx_tsgxssl_crypto`` to run OpenSSL in your enclave
+- ``-Wl,--whole-archive -lsgx_dcap_tvl`` when the DCAP remote attester runs inside an enclave, to verify the QvE result (we'll detail this later)
+
+If you want to use OpenSSL in your enclaves, we suggest you to use the commands `listed here<https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/f4d61738d251815f55ef53470c520a9c8666ba28/RemoteAttestation/Dockerfile#L29-L42>`_, they compile SGX SSL 1.1.1 using the latest mitigations.
+
+
+Loading an enclave
+------------------
+
+In order to load an enclave, you should include the header ``#include <sgx_urts.h>`` and then load it using the following code:
+
+.. code-block:: c++
+
+    sgx_enclave_id_t eid = 0;
+    sgx_launch_token_t token = { 0 };
+  	int updated = 0;
+    int debug = 1; // Change to 0 when using a production enclave
+
+    sgx_status_t status = sgx_create_enclave("MyEnclave.signed.so", debug, &token, &updated, &eid, 0);
+    if (status != SGX_SUCCESS) {
+        printf("Enclave creation failed.\n");
+        return 1;
+    }
