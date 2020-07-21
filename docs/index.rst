@@ -92,4 +92,45 @@ When doing a remote attestation, we rely on a *Quoting Enclave*. This is an encl
 a remotely verifiable quote.
 
 To do so, first a local attestation is performed, and it is then signed by the Quoting Enclave using a derivative
-of the *Root Provisioning Key* which is stored at Intel.
+of the *Root Provisioning Key* which is also stored at Intel.
+
+Establishing a secure channel
+-----------------------------
+
+In practice, to exchange secret data, it is not sufficient to attest the receiver, we must also
+establish a secure channel with it.
+
+| To do so, the SGX SDK provides two protocols, one adapted to local attestation, and one adapted to remote attestation.
+| It is based on `Eliptic-Curve Diffie-Hellman<https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman>`_: the two
+  parties exchange their public session keys and tie them to their identities in order to ensure these public keys
+  come from the same parties.
+| The knowledge of the other public key and of their private key enable them to calculate a shared private key which
+  is then used to exchange their secrets securely.
+
+
+Local attestation
+^^^^^^^^^^^^^^^^^
+
+In case we're using two enclaves on the same platform, we do a mutual attestation before provisioning the secrets:
+
+1. The enclave B sends its public key and its identity (with no proof) to A.
+2. A sends its public key to B with an identity targeting B. This identity contains a hash of A's public key
+   to ensure the sender of both data is the same.
+3. B verifies the identity of A and responds with its own identity targetting A (and which includes a hash of its public key).
+
+At the end of this routine, the two enclaves has the knowledge of the other's public key and was able to link
+it to an attested identity.
+
+They share a private key which is safe to use as it is linked to a verified identity.
+
+
+Remote attestation
+^^^^^^^^^^^^^^^^^^
+
+In the case of the Remote Attestation, the trusted third party does not necessarily run in an enclave
+and it is instead attested using ECDSA signature: its public key is shipped in the attested enclave which
+is thus able to verify it is communicating with the correct provisioner.
+
+1. The enclave generates a pair of session keys and sends its public key to the remote attester.
+2. The remote party send its public key and a proof of possession of the shared key. It signs the result with its permanent private key.
+3. The enclave requests a quote containing the hash of its session public key to the Quoting Enclave, and then sends it to the remote party.
