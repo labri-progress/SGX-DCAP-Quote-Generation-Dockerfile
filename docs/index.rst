@@ -258,3 +258,116 @@ To use untrusted functions from your enclave, include ``MyEnclave_t.h`` and then
     #include "MyEnclave_t.h"
 
     my_function_return_type ret = untrusted_function(...arguments);
+
+
+Destroying an enclave
+---------------------
+
+When you're done using an enclave, you should destroy it using the following function:
+
+.. code-block:: c++
+
+    sgx_destroy_enclave(eid);
+
+
+The SDK libraries
+=================
+
+You may include preconfigured ``.edl`` in your own ``.edl`` file. |br|
+In particular, this is useful when doing remote attestation, adding ``from "sgx_tkey_exchange.edl" import *;`` to your ``.edl`` file exposes the functions needed by the SDK to have a working remote attestation protocol.
+
+
+Local Attestation
+-----------------
+
+Intel provides `a sample showcasing local attestation <https://github.com/intel/linux-sgx/tree/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/LocalAttestation>`_.
+
+The communication between the two enclaves is managed by the system. For instance, the two instances may be managed by the same process, or by different processes and require socket communication.
+
+1. In any case, both enclaves should include the header ``#include "sgx_dh.h"`` (dh = Diffie Hellman) and begin by creating a Diffie Hellman session by using ``sgx_dh_init_session`` (like `this <https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/LocalAttestation/EnclaveInitiator/EnclaveMessageExchange.cpp#L97>`_ in the request initiator, the enclave A, and like `this<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/LocalAttestation/EnclaveResponder/EnclaveMessageExchange.cpp#L86>`_ in the responder, the enclave B).
+2. The enclave B should then generate the first message using ``sgx_dh_responder_gen_msg1`` (see `its usage<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/LocalAttestation/EnclaveResponder/EnclaveMessageExchange.cpp>`_).
+3. Enclave A should process the first message and generate the second message using ``sgx_dh_initiator_proc_msg1`` (see `its usage<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/LocalAttestation/EnclaveInitiator/EnclaveMessageExchange.cpp#L115>`_).
+4. Enclave B should process the second message using ``sgx_dh_responder_proc_msg2``, generates message 3 and verify that enclave A executes a trusted code/orginates from a trusted author (see `the sample<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/LocalAttestation/EnclaveResponder/EnclaveMessageExchange.cpp#L163-L178>`_).
+5. Finally, enclave A processes message 3 using ``sgx_dh_initiator_proc_msg3`` and verify enclave B's identity (see `the sample<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/LocalAttestation/EnclaveInitiator/EnclaveMessageExchange.cpp#L134-L144>`_).
+
+
+Remote Attestation
+------------------
+
+Intel provides `a sample showcasing remote attestation <https://github.com/intel/linux-sgx/tree/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/RemoteAttestation>`_. |br|
+Note that it is not functional as is and is only useful to demonstrate the main functions used during Remote Attestation.
+
+For a functional sample, check `our adaptation of sgx-ra-sample<https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/tree/b041f21e641323aa66ea32eb392944ce876ceccb/RemoteAttestation>`_ which leverages Intel's DCAP technology to limit requests to Intel's servers, or `Intel's sgx-ra-sample<https://github.com/intel/sgx-ra-sample>`_ which uses EPID attestation which is slower and relies a lot on Intel's servers.
+
+
+DCAP vs EPID
+^^^^^^^^^^^^
+
+The protocol used to create a secure channel between the enclave and the remote attester is identical, the difference is the method used to sign the enclave's quote.
+
+When using EPID attestation, the Quoting Enclave uses an EPID key to sign the quote. This key is reprovisioned regularly from Intel's servers. |br|
+During this provisioning phase, the Quoting Enclave proves to Intel that it is running on a genuine SGX platform (using the *Root Provisioning Key*) and Intel provides it an EPID key. |br|
+The remote attester must then send the quotes it receives to Intel in order to verify the EPID signature is correct. It communicates with Intel using its API key (given after registering `here<https://api.portal.trustedservices.intel.com/EPID-attestation>`_).
+
+When using DCAP attestation, Eliptic Curve cryptography is used to sign the quote. The Quoting Enclave generates an EC key, it then uses a derivative of the *Root Provisioning Key* called the *Provisioning Certification Key* to sign the public part of this EC key and include it in its quotes. |br|
+Intel exposes the public part of this *Certification Key*s in a certificate for all its CPUs. Hence, to verify a quote, the remote attester fetches the *Provisioning Certification Key* certificate corresponding to the machine it is in contact with from Intel, and verifies the quote signature using this certificate. |br|
+In order to limit the requests made to Intel and to speed up the attestation, these certificates are cached in a machine located in the same cluster.
+
+An important limitation of DCAP is that it requires FLC support, and few CPUs has it at the time this was written.
+
+The Remote Attestation from the Enclave
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This part is quite straightforward as the SDK provides almost all the API required.
+
+* First, the enclave should initialize the Diffie-Hellman session using ``sgx_ra_init`` (see `the RemoteAttestation sample <https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.cpp#L222>`_). You must hardcode the remote attester permanent public key in your enclave.
+
+  Note that ``sgx_ra_init`` is not called by the app but is wrapped in a function instead to ensure the remote attester public key is not forged (see `the untrusted api exposed <https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.edl#L39>`_)
+* You should import the required API in your enclave's ``.edl`` using ``from "sgx_tkey_exchange.edl" import *;``.
+* Then, the rest is managed using an untrusted API.
+
+  You should first choose the attestation key used depending on whether you want to use `EPID<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/RemoteAttestation/service_provider/service_provider.cpp#L125-L159>`_ or `DCAP attestation<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/RemoteAttestation/service_provider/service_provider.cpp#L90-L124>`_.
+
+  Use ``sgx_select_att_key_id`` to select the correct attestation key (see `this example <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/1bfe1957b469eba000c334e530e8c238a6747380/RemoteAttestation/sgx-ra-sample/src/client/client.cpp#L323-L329>`_).
+
+* Then, generate the first message using ``sgx_ra_get_msg1_ex`` (see `this<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/RemoteAttestation/isv_app/isv_app.cpp>`_).
+
+* Process the second message and generate the third message using ``sgx_ra_proc_msg2_ex`` (see `this <https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/RemoteAttestation/isv_app/isv_app.cpp#L514-L522>`_).
+
+* At this stage, the secure channel is in place and the enclave is attested. You may send a custom fourth message from the remote attester to provision your enclave. |br|
+  You may decrypt its message using `this code<https://github.com/intel/linux-sgx/blob/7c2e2f9d0bab50eefdac2a9360cae8e1dd470e15/SampleCode/RemoteAttestation/isv_enclave/isv_enclave.cpp#L326-L358>`_.
+
+
+The Remote Attestation from the Remote attester
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+This part is more complicated as Intel does not provide a library doing all the work for you.
+
+You must implement the verifications described `in this article <https://software.intel.com/content/www/us/en/develop/articles/code-sample-intel-software-guard-extensions-remote-attestation-end-to-end-example.html>`_.
+
+Fortunately, there is a `sample<https://github.com/intel/sgx-ra-sample>` which already implements this for you (see the `remote attester's code<https://github.com/intel/sgx-ra-sample/blob/96f5b5ce6e6467bc0e31d97ad807d52e62c61cfc/sp.cpp>`_). |br|
+However, it does only support EPID attestation!
+
+If you want to benefit from the new DCAP technology, you may use `our adaptation<https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile>`_ of this repository. |br|
+You may actually test it on a non-FLC machine by using the ``--disable-dcap`` (in `the Dockerfile<https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/master/RemoteAttestation/Dockerfile#L51>`_) but this is ONLY for testing, it shortcuts security verifications and thus must not be used in production.
+
+More details about DCAP attestation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Both the enclave attested and the remote attester must have an access to a server caching the *Provisioning Certification Key* certificates.
+
+* In case you are self-hosting your applications, you should use the *Default Quote Provider Library* (install the library ``libsgx-dcap-default-qpl``) which relies on the `PCCS Caching Service<https://github.com/intel/SGXDataCenterAttestationPrimitives/tree/master/QuoteGeneration/pccs>`_.
+
+  The library ``sgx-dcap-pccs`` must be installed on your caching server and you must configure its url in ``/etc/sgx_default_qcnl.conf`` in the image executing your enclaves and your remote attester.
+
+* In case you are using Azure, you should simply install the `Azure DCAP Client <https://github.com/microsoft/Azure-DCAP-Client>`_ (set up `Microsoft repository<https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/d41b47bb43102a29005092eb068dea306d10197d/RemoteAttestation/Dockerfile#L10-L12>`_ and then run ``apt install -y azure-dcap-client``).
+
+
+The verification of the quote in the remote attester is done using another special enclave: the QVE (Quote Verification Enclave).
+
+* First link your application with ``-lsgx_dcap_ql -lsgx_dcap_quoteverify``.
+* Then call the QVE to verify your quote (check `our sample<https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/b041f21e641323aa66ea32eb392944ce876ceccb/RemoteAttestation/sgx-ra-sample/src/provisioning/quote_verify.cpp>`_).
+* In case your remote attester runs in an enclave, you must attest you're communicating with a genuine QVE (check `how we are doing it <https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/master/RemoteAttestation/sgx-ra-sample/src/provisioning/ProvisioningEnclave/ProvisioningEnclave.cpp#L177-L239>`_).
+
+
+In case you don't have access to a trusted time in your remote attester, you can use a `custom acceptation policy for the QVE's result<https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/b041f21e641323aa66ea32eb392944ce876ceccb/RemoteAttestation/sgx-ra-sample/src/provisioning/ProvisioningEnclave/ProvisioningEnclave.cpp#L189-L194>`_.
