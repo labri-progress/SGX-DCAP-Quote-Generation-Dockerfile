@@ -80,9 +80,9 @@ When doing a local attestation, there is an enclave that is attested, let's call
 1. The enclave B send its identity (without any proof) to the enclave A.
 2. The enclave A requests an identity targetting B to the CPU. |br|
    In practice, the CPU derivates the *Root Sealing Key* using elements of the identity of B and use this key
-     to generate a HMAC of A's identity. |br|
+   to generate a HMAC of A's identity. |br|
    This derivated key is only accessible from B using the instruction *EGETKEY* ensuring only the CPU
-     and B can generate such a MAC, and no one can forge a fake report.
+   and B can generate such a MAC, and no one can forge a fake report.
 3. B calls *EGETKEY* to fetch the key used to verify reports targetting it and verify the report of A.
 
 Remote attestation
