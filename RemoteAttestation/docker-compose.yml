@@ -1,0 +1,29 @@
+version: '3'
+
+services:
+  aesm:
+    image: sgx_aesm
+    devices:
+      - /dev/sgx/enclave
+      - /dev/sgx/provision
+    volumes:
+      - /tmp/aesmd:/var/run/aesmd
+    stdin_open: true
+    tty: true
+    environment:
+      - http_proxy
+      - https_proxy
+
+  provisioning:
+    image: sgx_provisioning
+    depends_on:
+      - aesm
+    devices:
+      - /dev/sgx/enclave
+    volumes:
+      - /tmp/aesmd:/var/run/aesmd
+    stdin_open: true
+    tty: true
+    environment:
+      - http_proxy
+      - https_proxy

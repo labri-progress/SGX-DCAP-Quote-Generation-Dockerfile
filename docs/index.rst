@@ -10,7 +10,7 @@ With the emergence of Cloud Computing, the privacy of the data manipulated appea
 major topic.
 
 | In order to bring a solution, Intel created a new Instruction Set Architecture: SGX.
-| It allows creating private memory areas which can't be read or modified by the system,
+| It allows creating private memory areas **called enclaves** which can't be read or modified by the system,
   these areas as encrypted, and only decrypted in the CPU to limit the attack surface to the hardware:
 
 .. image:: graphs/1enclaves.svg
@@ -34,3 +34,20 @@ Thus, different applications won't be able to read the other private memory area
   introduction to SGX internals, the way it manages memory and the instructions used.
 | For even further details, you may check out `this document<https://eprint.iacr.org/2016/086.pdf>`_ produced
   by two researchers.
+
+How to provision secret data to an enclave?
+------------------------------------------- 
+
+All this would be seamless if the code executed in our enclaves contained sensitive data
+as they could be reversed engineered.
+
+What we should do is provisioning the data from a trusted third party. This actor should
+verify that the requesting app is running on a genuine SGX platform and that it executes
+a trusted code before provisioning it.
+
+This is done using an attestation mechanism. The attested enclave requests the CPU to produce a proof
+of the code it is executing, and that it is running on an actual SGX platform.
+
+.. image:: graphs/2certification.svg
+   :align: center
+   :alt: Attestation scheme
