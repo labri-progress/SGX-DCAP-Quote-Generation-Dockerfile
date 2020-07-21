@@ -371,3 +371,27 @@ The verification of the quote in the remote attester is done using another speci
 
 
 In case you don't have access to a trusted time in your remote attester, you can use a `custom acceptation policy for the QVE's result<https://github.com/labri-progress/SGX-DCAP-Quote-Generation-Dockerfile/blob/b041f21e641323aa66ea32eb392944ce876ceccb/RemoteAttestation/sgx-ra-sample/src/provisioning/ProvisioningEnclave/ProvisioningEnclave.cpp#L189-L194>`_.
+
+
+Other interesting features
+==========================
+
+In case you need it, the SGX SDK provides other features:
+
+- **Sealing:** You can seal data in your long term memory. It will be encrypted, passed to the system and stored in a long term storage. This is done using a derative of the *Root Sealing Key* and
+  this data can only be sealed/unsealed by a specific enclave.
+- **SGX PCL:** It is possible to protect the code executed in an enclave from reverse engineering. Intel provides the `linux-sgx-pcl<https://github.com/intel/linux-sgx-pcl>`_ library to do this.
+
+  It loads your code from a third party after being attested thus preventing your code from being executed/analyses in a non secure environment.
+- **Trusted time:** You can get a time relative to your first request using the function ``sgx_get_trusted_time``. This functions requires the PSE (which does a request to Intel servers when it is initialized)
+  and the ME (Management Engine) support in your CPU.
+- **Power Transition:** The SDK provides utilities to save the state of the enclave when the machine it is running on is shutdown, and to restore it when it is rebooted.
+
+It is also possible to run SGX with different languages or SDKs:
+
+- OpenEnclave by Microsoft abstracts SGX to simplify its use and support similar technologies: `https://openenclave.io/sdk/ <https://openenclave.io/sdk/>`_.
+
+  A sample demonstrating mutual Remote Attestation between two enclaves: `https://github.com/openenclave/openenclave/tree/b9ae53c1e580fd1af4760f914d53cba1650068ae/samples/remote_attestation <https://github.com/openenclave/openenclave/tree/b9ae53c1e580fd1af4760f914d53cba1650068ae/samples/remote_attestation>`_.
+
+  Note that it abstracts DCAP attestation and requires FLC-compatible CPUs. It does not support EPID attestation.
+- You may use the Rust SGX SDK from Baidu: `https://github.com/apache/incubator-teaclave-sgx-sdk <https://github.com/apache/incubator-teaclave-sgx-sdk>`_.
