@@ -14,7 +14,7 @@ major topic.
   these areas as encrypted, and only decrypted in the CPU to limit the attack surface to the hardware:
 
 .. image:: graphs/1enclaves.svg
-   :align: right
+   :align: center
    :alt: Attack surface
 
 | These memory areas can only be read/updated by the code they were associated with at their creation.
