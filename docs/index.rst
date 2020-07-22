@@ -395,3 +395,11 @@ It is also possible to run SGX with different languages or SDKs:
 
   Note that it abstracts DCAP attestation and requires FLC-compatible CPUs. It does not support EPID attestation.
 - You may use the Rust SGX SDK from Baidu: `https://github.com/apache/incubator-teaclave-sgx-sdk <https://github.com/apache/incubator-teaclave-sgx-sdk>`_.
+
+Notes about FLC
+===============
+
+This is a major complication for the adoption of SGX DCAP.
+
+The goal of this new feature is to limit access to the platform unique ID (PPID) which is
+used during attestation to provision the EPID key / to fetch the correct PCK certificate and protect the privacy of the user.
